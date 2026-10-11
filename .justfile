@@ -24,12 +24,7 @@ generate:
       curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 3 -o "${dl}.part" "${url}"
       mv "${dl}.part" "${dl}"
     fi
-    # coreutils calls it sha256sum, macOS ships it as shasum -a 256.
-    if command -v sha256sum >/dev/null; then
-      echo "${sum}  ${dl}" | sha256sum -c - >/dev/null
-    else
-      echo "${sum}  ${dl}" | shasum -a 256 -c - >/dev/null
-    fi
+    echo "${sum}  ${dl}" | sha256sum -c - >/dev/null
     if [ ! -d "${src}" ]; then
       tar -xzf "${dl}" -C build/hadolint
     fi
