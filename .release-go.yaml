@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# The godolint command's release: goreleaser's configuration under the lane's
+# name, read by the shared release recipe and the seeded release workflow
+# (limen's book/releasing.md). The builds section is the twin of the shared
+# build recipe (.limen/just/build-go.just, release): a flag change here lands
+# there too. The command has no version flag, so no ldflag stamps one; it is
+# pure Go, so the CGO hardening flags do not apply.
+version: 2
+
+project_name: godolint
+
+dist: .build/release
+
+builds:
+  - main: ./cmd/godolint
+    binary: godolint
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    buildmode: pie
+    tags:
+      - netgo
+      - osusergo
+    ldflags:
+      - -s -w
+    targets:
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+      - windows_amd64
+      - windows_arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: ["tar.gz"]
+
+checksum:
+  name_template: checksums.txt
+
+signs:
+  - cmd: sh
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args:
+      - -c
+      - 'if [ -n "${COSIGN_KEY:-}" ]; then cosign sign-blob --yes --key "${COSIGN_KEY}" --use-signing-config=false --bundle "${signature}" "${artifact}"; else cosign sign-blob --yes --bundle "${signature}" "${artifact}"; fi'
+
+# The notes are GitHub's, every pull request merged since the previous tag,
+# grouped by .github/release.yml.
+changelog:
+  use: github-native
+
+release:
+  prerelease: auto
