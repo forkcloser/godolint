@@ -3,7 +3,7 @@ package rules
 // Generate rule stubs and tests from hadolint Haskell sources.
 //
 // Run: just generate. It fetches the hadolint source pins.yaml names, by
-// digest, into build/, and exports HADOLINT_SRC, its root, before running
+// digest, into .build/, and exports HADOLINT_SRC, its root, before running
 // go generate here; the directives below read the path from that variable,
 // so a bare go generate fails on a missing source rather than reading a
 // checkout of no known version.

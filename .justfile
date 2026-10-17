@@ -17,16 +17,16 @@ generate:
     version="$(limen pins get hadolint version)"
     url="$(limen pins get hadolint url)"
     sum="$(limen pins get hadolint sha256)"
-    dl="build/hadolint/hadolint-${version}.tar.gz"
-    src="build/hadolint/hadolint-${version#v}"
-    mkdir -p build/hadolint
+    dl=".build/hadolint/hadolint-${version}.tar.gz"
+    src=".build/hadolint/hadolint-${version#v}"
+    mkdir -p .build/hadolint
     if [ ! -f "${dl}" ]; then
       curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 3 -o "${dl}.part" "${url}"
       mv "${dl}.part" "${dl}"
     fi
     echo "${sum}  ${dl}" | sha256sum -c - >/dev/null
     if [ ! -d "${src}" ]; then
-      tar -xzf "${dl}" -C build/hadolint
+      tar -xzf "${dl}" -C .build/hadolint
     fi
     HADOLINT_SRC="${PWD}/${src}" go generate ./internal/rules
 

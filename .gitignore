@@ -13,7 +13,6 @@ Desktop.ini
 *.local
 _scratch/
 WIP_*
-/build
 /target/
 **/*.rs.bk
 *.pdb
