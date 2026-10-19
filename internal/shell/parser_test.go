@@ -140,6 +140,98 @@ func TestCmdHasArgs(t *testing.T) {
 	}
 }
 
+// TestCmdHasAllArgs: every expected argument must be present, where CmdHasArgs
+// settles for any of them.
+func TestCmdHasAllArgs(t *testing.T) {
+	t.Parallel()
+
+	ps, err := shell.ParseShell("yum clean")
+	if err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+
+	cmd := ps.PresentCommands[0]
+
+	if !shell.CmdHasArgs("yum", []string{"clean", "all"}, cmd) {
+		t.Error("CmdHasArgs: yum clean has one of clean, all")
+	}
+
+	if shell.CmdHasAllArgs("yum", []string{"clean", "all"}, cmd) {
+		t.Error("CmdHasAllArgs: yum clean lacks all")
+	}
+
+	if !shell.CmdHasAllArgs("yum", []string{"clean"}, cmd) {
+		t.Error("CmdHasAllArgs: yum clean has clean")
+	}
+
+	if shell.CmdHasAllArgs("dnf", []string{"clean"}, cmd) {
+		t.Error("CmdHasAllArgs: a different command")
+	}
+}
+
+// TestBasename: a shell is known by the last path segment of its name.
+func TestBasename(t *testing.T) {
+	t.Parallel()
+
+	for name, want := range map[string]string{
+		"/usr/bin/bash": "bash",
+		"/bin/zsh":      "zsh",
+		"ash":           "ash",
+		"pwsh":          "pwsh",
+	} {
+		if got := shell.Basename(name); got != want {
+			t.Errorf("Basename(%q) = %q; want %q", name, got, want)
+		}
+	}
+}
+
+// TestDropFlagArg: the argument after a listed flag is its value and goes; a
+// flag carrying its value inline (--flag=value) keeps the argument after it;
+// the value is the argument with the smallest id above the flag's, so an
+// unlisted flag between them is not mistaken for it; other flags stay.
+func TestDropFlagArg(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		script string
+		drop   []string
+		want   []string
+	}{
+		{"dnf install -y --releasever 9 tomcat", []string{"releasever"}, []string{"install", "tomcat"}},
+		{"dnf install -y --releasever=9 tomcat", []string{"releasever"}, []string{"install", "tomcat"}},
+		{"dnf install -y --setopt a=b tomcat", []string{"setopt"}, []string{"install", "tomcat"}},
+		{"pecl install -D with-foo=yes redis", []string{"D", "define"}, []string{"install", "redis"}},
+		{"dnf install -y --enablerepo crb -x foo tomcat", []string{"enablerepo", "x"}, []string{"install", "tomcat"}},
+		{"dnf install -y --releasever 9 tomcat", []string{"other"}, []string{"install", "9", "tomcat"}},
+	} {
+		ps, err := shell.ParseShell(tc.script)
+		if err != nil {
+			t.Fatalf("failed to parse %q: %v", tc.script, err)
+		}
+
+		cmd := shell.DropFlagArg(tc.drop, ps.PresentCommands[0])
+
+		got := shell.GetArgsNoFlags(cmd)
+		if len(got) != len(tc.want) {
+			t.Errorf("DropFlagArg(%v) on %q: %v; want %v", tc.drop, tc.script, got, tc.want)
+
+			continue
+		}
+
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("DropFlagArg(%v) on %q: %v; want %v", tc.drop, tc.script, got, tc.want)
+
+				break
+			}
+		}
+
+		if len(cmd.Flags) != len(ps.PresentCommands[0].Flags) {
+			t.Errorf("DropFlagArg(%v) on %q dropped flags", tc.drop, tc.script)
+		}
+	}
+}
+
 func TestCountCommands(t *testing.T) {
 	t.Parallel()
 

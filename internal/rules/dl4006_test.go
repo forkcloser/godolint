@@ -104,6 +104,34 @@ RUN Get-Variable PSVersionTable | Select-Object -ExpandProperty Value`
 	)
 
 	t.Run(
+		"don't warn when bash is invoked via a non-standard absolute path",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch as build
+SHELL ["/usr/bin/bash", "-o", "pipefail", "-c"]
+RUN wget -O - https://some.site | wc -l file > /number`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL4006")
+		},
+	)
+
+	t.Run(
+		"don't warn when zsh is invoked via a non-standard absolute path",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch as build
+SHELL ["/usr/local/bin/zsh", "-o", "pipefail", "-c"]
+RUN wget -O - https://some.site | wc -l file > /number`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL4006")
+		},
+	)
+
+	t.Run(
 		"ignore non posix shells: cmd.exe",
 		func(t *testing.T) {
 			t.Parallel()

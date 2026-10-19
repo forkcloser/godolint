@@ -91,4 +91,88 @@ func TestDL3032(t *testing.T) {
 			testutils.AssertNoViolation(t, violations, "DL3032")
 		},
 	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean cache`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (3)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean all`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (4)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (5)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (6)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/cache/libdnf5`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (7)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /foo/bar && yum install -y bash && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
 }

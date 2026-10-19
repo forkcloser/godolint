@@ -236,6 +236,83 @@ func CmdHasArgs(expectedName string, expectedArgs []string, cmd Command) bool {
 	return false
 }
 
+// CmdHasAllArgs reports whether cmd is expectedName and carries every one of
+// expectedArgs, where CmdHasArgs asks for any of them.
+// Ported from Hadolint.Shell.cmdHasAllArgs.
+func CmdHasAllArgs(expectedName string, expectedArgs []string, cmd Command) bool {
+	if cmd.Name != expectedName {
+		return false
+	}
+
+	for _, expected := range expectedArgs {
+		if !slices.ContainsFunc(cmd.Arguments, func(arg CmdPart) bool { return arg.Arg == expected }) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Basename is the last path segment of a shell's name, so /usr/bin/bash,
+// /bin/bash and bash are one shell.
+// Ported from Hadolint.Shell.shellBasename.
+func Basename(name string) string {
+	return name[strings.LastIndex(name, "/")+1:]
+}
+
+// DropFlagArg returns cmd without the value arguments of the given flags: the
+// argument after each such flag, unless the flag carries its value inline
+// (--flag=value). The flags themselves stay.
+// Ported from Hadolint.Shell.dropFlagArg.
+func DropFlagArg(flagsToDrop []string, cmd Command) Command {
+	drop := make(map[int]bool)
+
+	for _, flag := range cmd.Flags {
+		if !slices.Contains(flagsToDrop, flag.Arg) || hasInlineValue(cmd, flag.ID) {
+			continue
+		}
+
+		if id, ok := valueID(cmd, flag.ID); ok {
+			drop[id] = true
+		}
+	}
+
+	kept := make([]CmdPart, 0, len(cmd.Arguments))
+
+	for _, arg := range cmd.Arguments {
+		if !drop[arg.ID] {
+			kept = append(kept, arg)
+		}
+	}
+
+	return Command{Name: cmd.Name, Arguments: kept, Flags: cmd.Flags}
+}
+
+// hasInlineValue reports whether the argument with id carries an "=".
+func hasInlineValue(cmd Command, id int) bool {
+	for _, arg := range cmd.Arguments {
+		if arg.ID == id && strings.Contains(arg.Arg, "=") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// valueID is the id of the argument following the one with flagID, the
+// smallest id above it, as Hadolint.Shell.getValueId finds it.
+func valueID(cmd Command, flagID int) (int, bool) {
+	best, found := 0, false
+
+	for _, arg := range cmd.Arguments {
+		if arg.ID > flagID && (!found || arg.ID < best) {
+			best, found = arg.ID, true
+		}
+	}
+
+	return best, found
+}
+
 // HasFlag checks if a command has a specific flag.
 // Ported from Hadolint.Shell.hasFlag.
 func HasFlag(flag string, cmd Command) bool {
