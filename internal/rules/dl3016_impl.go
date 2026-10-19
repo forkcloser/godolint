@@ -154,7 +154,7 @@ func hasNpmGitPrefix(pkg string) bool {
 }
 
 //nolint:gochecknoglobals // read-only lookup table, effectively constant
-var npmTarballSuffixes = []string{".tar", ".tar.gz", ".tgz"}
+var npmTarballSuffixes = []string{tarSuffix, tarGzSuffix, tgzSuffix}
 
 func hasNpmTarballSuffix(pkg string) bool {
 	for _, suffix := range npmTarballSuffixes {

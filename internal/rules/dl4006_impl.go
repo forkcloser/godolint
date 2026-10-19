@@ -140,18 +140,11 @@ func hasPipefailOption(shellCmd string) bool {
 		return false
 	}
 
-	validShells := []string{
-		"/bin/bash",
-		"/bin/zsh",
-		"/bin/ash",
-		"bash",
-		"zsh",
-		"ash",
-	}
+	// The shell is known by its basename, so bash under any path counts.
+	validShells := []string{"bash", "zsh", "ash"}
 
 	for _, cmd := range parsed.PresentCommands {
-		// Check if it's a valid shell
-		isValidShell := slices.Contains(validShells, cmd.Name)
+		isValidShell := slices.Contains(validShells, shell.Basename(cmd.Name))
 
 		if !isValidShell {
 			continue

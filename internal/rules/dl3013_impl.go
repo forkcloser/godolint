@@ -206,7 +206,7 @@ func isVersionedVcs(pkg string) bool {
 }
 
 //nolint:gochecknoglobals // read-only lookup table, effectively constant
-var pipLocalPackageExtensions = []string{".whl", ".tar.gz"}
+var pipLocalPackageExtensions = []string{".whl", tarGzSuffix}
 
 func isLocalPackage(pkg string) bool {
 	for _, ext := range pipLocalPackageExtensions {

@@ -39,8 +39,8 @@ func isArchive(path string) bool {
 	path = dropQuotes(path)
 	// Archive extensions from hadolint
 	archiveExts := []string{
-		".tar", ".Z", ".bz2", ".gz", ".lz", ".lzma",
-		".tZ", ".tb2", ".tbz", ".tbz2", ".tgz", ".tlz",
+		tarSuffix, ".Z", ".bz2", ".gz", ".lz", ".lzma",
+		".tZ", ".tb2", ".tbz", ".tbz2", tgzSuffix, ".tlz",
 		".txz", ".tzo", ".t7z", ".tz", ".taz",
 		".xz", ".zst", ".tzst",
 	}

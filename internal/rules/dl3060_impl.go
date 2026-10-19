@@ -46,5 +46,5 @@ func isYarnInstall(cmd shell.Command) bool {
 }
 
 func isYarnCacheClean(cmd shell.Command) bool {
-	return shell.CmdHasArgs("yarn", []string{"cache", cleanArg}, cmd)
+	return shell.CmdHasAllArgs("yarn", []string{"cache", cleanArg}, cmd)
 }

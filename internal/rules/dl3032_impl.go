@@ -39,10 +39,10 @@ func checkDL3032(instruction syntax.Instruction) bool {
 
 func isYumClean(cmd shell.Command) bool {
 	// yum clean all
-	if shell.CmdHasArgs(yumCommand, []string{cleanArg, allArg}, cmd) {
+	if shell.CmdHasAllArgs(yumCommand, []string{cleanArg, allArg}, cmd) {
 		return true
 	}
 
 	// rm -rf /var/cache/yum/*
-	return shell.CmdHasArgs("rm", []string{recursiveForceFlag, "/var/cache/yum/*"}, cmd)
+	return shell.CmdHasAllArgs("rm", []string{recursiveForceFlag, "/var/cache/yum/*"}, cmd)
 }

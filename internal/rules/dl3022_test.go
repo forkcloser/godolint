@@ -21,6 +21,24 @@ func TestDL3022(t *testing.T) {
 	}
 
 	t.Run(
+		"don't warn on a variable as --from=<var>",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `ARG SRC=builder
+FROM scratch AS builder
+RUN foo
+FROM node
+COPY --from=$SRC foo .
+COPY --from=${SRC} foo .
+COPY --from="${SRC}" foo .`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3022")
+		},
+	)
+
+	t.Run(
 		"don't warn on correctly defined aliases",
 		func(t *testing.T) {
 			t.Parallel()
@@ -87,6 +105,22 @@ COPY --from=0 foo .`
 COPY --from=build foo .
 FROM node as build
 RUN baz`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3022")
+		},
+	)
+
+	t.Run(
+		"warn on an undefined alias next to a variable",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `ARG SRC=builder
+FROM scratch AS builder
+FROM node
+COPY --from=${SRC} foo .
+COPY --from=nonexistent bar .`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3022")

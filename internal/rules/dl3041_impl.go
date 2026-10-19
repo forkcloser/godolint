@@ -122,13 +122,23 @@ func dnfInstallFilter(cmd shell.Command) []string {
 
 	var packages []string
 
-	for _, arg := range shell.GetArgsNoFlags(cmd) {
+	for _, arg := range shell.GetArgsNoFlags(shell.DropFlagArg(dnfFlagsWithValue(), cmd)) {
 		if arg != installArg && arg != moduleArg {
 			packages = append(packages, arg)
 		}
 	}
 
 	return packages
+}
+
+// dnfFlagsWithValue are the dnf and microdnf options that take their value as
+// a separate argument, which is not a package (--releasever 9).
+func dnfFlagsWithValue() []string {
+	return []string{
+		"c", "config", "comment", "d", "debuglevel", "destdir", "disableplugin", "disablerepo",
+		"downloaddir", "e", "enableplugin", "enablerepo", "errorlevel", "exclude", "forcearch",
+		"installroot", "R", "randomwait", "releasever", "repo", "repofrompath", "repoid", "setopt", "x",
+	}
 }
 
 // isDnfPackageVersionFixed is hadolint's packageVersionFixed: a name with no
@@ -195,7 +205,8 @@ func isDnfVersionChar(char rune) bool {
 		char == '^' ||
 		char == '_' ||
 		char == ':' ||
-		char == '+'
+		char == '+' ||
+		char == '*'
 }
 
 func isDnfModuleVersionFixed(mod string) bool {

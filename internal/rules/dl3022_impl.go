@@ -73,26 +73,10 @@ func (*DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state
 		}
 
-		fromRef := *copyInstr.From
-
-		// Image reference (contains :) - OK (external image)
-		if strings.Contains(fromRef, ":") {
+		if currentState.resolves(*copyInstr.From) {
 			return state
 		}
 
-		// Named stage - OK if exists
-		if currentState.stages[fromRef] {
-			return state
-		}
-
-		// Numeric stage reference - OK if valid
-		if idx, err := strconv.Atoi(fromRef); err == nil {
-			if idx < currentState.count {
-				return state
-			}
-		}
-
-		// Invalid reference - fail
 		return state.AddFailure(rule.CheckFailure{
 			Code:     DL3022Meta.Code,
 			Severity: DL3022Meta.Severity,
@@ -108,4 +92,18 @@ func (*DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruct
 // Finalize performs final checks after processing all instructions.
 func (*DL3022Rule) Finalize(state rule.State) rule.State {
 	return state // No finalization needed
+}
+
+// resolves reports whether a COPY --from names something the rule accepts:
+// an image reference (it contains `:`), a variable (resolved at build time,
+// not to a stage seen here), a stage alias seen so far, or a stage index
+// below the count of stages seen.
+func (s dl3022State) resolves(fromRef string) bool {
+	if strings.Contains(fromRef, ":") || strings.Contains(fromRef, "$") || s.stages[fromRef] {
+		return true
+	}
+
+	idx, err := strconv.Atoi(fromRef)
+
+	return err == nil && idx < s.count
 }

@@ -21,6 +21,30 @@ func TestDL3041(t *testing.T) {
 	}
 
 	t.Run(
+		"not ok with options that take a separate value and an unpinned package",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --releasever 9 tomcat`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"not ok with options that take a separate value and an unpinned package (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --enablerepo crb tomcat`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
 		"not ok with version as variable - different stages, new stage",
 		func(t *testing.T) {
 			t.Parallel()
@@ -101,6 +125,30 @@ RUN dnf -y install git-core-${version}`
 			t.Parallel()
 
 			dockerfile := `RUN microdnf install -y rpm-sign && microdnf clean all`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with a wildcard version",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y rspamd-3.* tini-0.*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with a wildcard version (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y rspamd-*`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3041")
@@ -281,6 +329,42 @@ RUN dnf -y install git-core-${version}`
 			t.Parallel()
 
 			dockerfile := `RUN microdnf install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with options that take a separate value",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false tomcat-9.0.1`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with options that take a separate value (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --enablerepo crb --disablerepo epel -x foo tomcat-9.0.1`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with options that take a separate value (3)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y --config /etc/dnf.conf tomcat-9.0.1`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3041")
