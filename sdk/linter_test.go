@@ -3,8 +3,13 @@ package sdk_test
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
+	"github.com/forkcloser/godolint/internal/parser"
 	"github.com/forkcloser/godolint/sdk"
 )
 
@@ -397,4 +402,73 @@ func AsError(err error, target any) bool {
 	}
 
 	return false
+}
+
+// INTENTION: LintFile reads the file and lints it as Lint does; a path that
+// cannot be read is an error wrapping the file system's, not a panic.
+func TestLinter_LintFile(t *testing.T) {
+	t.Parallel()
+
+	dockerfile := []byte("FROM debian:latest\nWORKDIR app\n")
+	path := filepath.Join(t.TempDir(), "Dockerfile")
+
+	if err := os.WriteFile(path, dockerfile, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	linter := sdk.New()
+
+	fromFile, err := linter.LintFile(t.Context(), path)
+	if err != nil {
+		t.Fatalf("LintFile() error = %v", err)
+	}
+
+	fromBytes, err := linter.Lint(t.Context(), dockerfile)
+	if err != nil {
+		t.Fatalf("Lint() error = %v", err)
+	}
+
+	if !reflect.DeepEqual(fromFile, fromBytes) {
+		t.Errorf("LintFile() = %+v, Lint() = %+v", fromFile, fromBytes)
+	}
+
+	_, err = linter.LintFile(t.Context(), filepath.Join(t.TempDir(), "missing"))
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LintFile() of a missing path: %v, want fs.ErrNotExist", err)
+	}
+}
+
+// INTENTION: a Dockerfile buildkit's parser reads but the converter refuses
+// (a FROM with no image, an instruction that is none, bytes that are no
+// Dockerfile) is a ParseError, as hadolint refuses it at parse; it was
+// lint-clean, the refused instruction skipped.
+func TestLinter_Lint_RefusesWhatIsNoDockerfile(t *testing.T) {
+	t.Parallel()
+
+	linter := sdk.New()
+
+	for _, tc := range []struct {
+		name       string
+		dockerfile string
+		sentinel   error
+	}{
+		{"FROM without an image", "FROM\n", parser.ErrFromMissingImage},
+		{"an unknown instruction", "FROM debian\nFOO bar\n", parser.ErrUnknownInstruction},
+		{"bytes that are no Dockerfile", "\x00\xff", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := linter.Lint(t.Context(), []byte(tc.dockerfile))
+
+			var parseErr *sdk.ParseError
+			if !errors.As(err, &parseErr) || result != nil {
+				t.Fatalf("Lint() = %+v, %v; want a ParseError", result, err)
+			}
+
+			if tc.sentinel != nil && !errors.Is(err, tc.sentinel) {
+				t.Errorf("Lint() error = %v; want it to wrap %v", err, tc.sentinel)
+			}
+		})
+	}
 }

@@ -177,7 +177,7 @@ func main() {
 	// Parse and usage errors are kong's: printed with the usage. Every
 	// failure exits 1 — kong's own usage-error status (80) is folded into
 	// the one non-zero status this tool has always had; --help stays 0.
-	kctx := kong.Parse(&cli,
+	cmdline := kong.Must(&cli,
 		kong.Name("godolint"),
 		kong.Description("Dockerfile linter"),
 		kong.UsageOnError(),
@@ -189,6 +189,14 @@ func main() {
 			os.Exit(code)
 		}),
 	)
+
+	kctx, err := cmdline.Parse(os.Args[1:])
+	if err != nil {
+		// The usage goes with the error, to stderr: stdout is the JSON only.
+		// --help, handled inside Parse, keeps stdout.
+		cmdline.Stdout = os.Stderr
+		cmdline.FatalIfErrorf(err)
+	}
 
 	configureLogger(cli.LogLevel)
 
