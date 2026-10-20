@@ -74,10 +74,13 @@ func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error)
 			})
 		}
 
+		// An instruction the converter refuses (one it does not know, or
+		// one without what it requires, a FROM with no image) is no
+		// Dockerfile: hadolint refuses it at parse, and so does a build.
+		// Skipping it lint-passed what neither accepts.
 		instr, err := convertNode(child)
 		if err != nil {
-			// Skip instructions we can't convert (continue linting rest)
-			continue
+			return nil, fmt.Errorf("line %d: %w", child.StartLine, err)
 		}
 
 		if instr != nil {

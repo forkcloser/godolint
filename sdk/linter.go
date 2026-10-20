@@ -2,6 +2,8 @@ package sdk
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/forkcloser/godolint/internal/parser"
 	"github.com/forkcloser/godolint/internal/process"
@@ -148,12 +150,15 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	return result, nil
 }
 
-// LintFile is a convenience method that reads and lints a Dockerfile from a file path.
-func (*Linter) LintFile(_ context.Context, _ string) (*Result, error) {
-	// Note: This would require os.ReadFile, but for now we keep the API surface simple
-	// and let users read files themselves. This avoids adding file I/O concerns to the linter.
-	// If we add this, we should also handle context cancellation properly.
-	panic("LintFile not implemented - use Lint() with os.ReadFile()")
+// LintFile reads the Dockerfile at path and lints it as Lint does; a path
+// that cannot be read is an error wrapping the file system's.
+func (l *Linter) LintFile(ctx context.Context, path string) (*Result, error) {
+	dockerfile, err := os.ReadFile(path) // #nosec G304 -- the path is the caller's, this method's one argument
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	return l.Lint(ctx, dockerfile)
 }
 
 func convertSeverity(s rule.Severity) Severity {
