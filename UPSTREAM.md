@@ -38,3 +38,4 @@ tables below; commits to hadolint's own build, CI, docs and Haskell plumbing are
 | Change | Here |
 | --- | --- |
 | The port's own behaviour: the `# hadolint ignore` pragmas' rules, `--disable-ignore-pragma`, DL1001 reporting every `ignore`, the SDK | README |
+| `sdk.Linter.LintFile` reads and lints a file, a path that cannot be read an error, where it panicked by design; an instruction the converter refuses (a `FROM` with no image, an instruction the format does not define, a one-argument `COPY`, a nameless `ARG`) is a parse error naming the line, as hadolint and a build refuse it, where it was skipped and the rest linted; a missing file argument puts the usage on stderr with the error and leaves stdout empty, as the README promises the JSON alone | https://github.com/forkcloser/godolint/pull/117 |
