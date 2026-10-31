@@ -222,7 +222,7 @@ godolint is a faithful port of hadolint to Go. Rule declarations and tests are g
 **Current status:**
 - All unit tests are automatically converted to Go tests
 - Rule metadata (code, severity, message) matches hadolint exactly
-- Ongoing work to implement remaining rules
+- Every DL rule is implemented
 
 **Project philosophy:**
 - hadolint is the upstream for rule definitions and baseline tests
@@ -466,46 +466,20 @@ A release is a signed, annotated tag `vX.Y.Z` on `main`; no binaries are
 published. Consumers pin the tag as a `go_install` package (through aqua) or
 with `go install github.com/forkcloser/godolint/cmd/godolint@vX.Y.Z`.
 
-## Roadmap
-
-### Short-term
-- [ ] Implement remaining hadolint rules
-- [ ] Add CLI flags (verbosity, rule selection, output format)
-- [ ] Configuration file support (YAML/TOML)
-
-### Medium-term
-- [ ] Alternative output formats (SARIF, human-readable TTY)
-- [ ] Performance optimization and benchmarking
-- [ ] Documentation improvements
-- [ ] GitHub Actions integration example
-
-### Long-term
-- [ ] Plugin architecture for custom rules
-- [ ] Integration with container build tools
-- [ ] Language-agnostic rule repository
-- [ ] IDE extensions (VS Code, GoLand)
-
 ## Limitations
 
-### Current
-- **CLI limited** - JSON output only, minimal flags (SDK has full flexibility)
-- **No configuration file support** - Use SDK for programmatic configuration
-
-### Parser Differences
-- Quote handling differs slightly from hadolint (buildkit includes quotes in values)
-- Some escape sequences handled differently
-- Affects ~30% of auto-generated test cases
+- The command writes JSON only, and neither it nor the SDK takes a
+  configuration: the configurable rules (DL3026's allowed registries,
+  DL3049 to DL3056's label schema) run on their defaults. Output formats:
+  https://github.com/forkcloser/godolint/issues/127; configuration:
+  https://github.com/forkcloser/godolint/issues/125.
+- Quote handling differs slightly from hadolint (buildkit includes quotes in
+  values).
 
 ## Contributing
 
-Contributions welcome! Current priorities:
-- Implementing remaining hadolint rules
-- Adding CLI flags
-- Alternative output formats (SARIF, GitHub Actions annotations)
-- Performance optimization
-- Documentation and examples
-
-See `SHELLCHECK_IMPLEMENTATION.md` for details on the shell validation architecture.
+Contributions welcome; the open issues are the backlog:
+https://github.com/forkcloser/godolint/issues.
 
 ## License
 
