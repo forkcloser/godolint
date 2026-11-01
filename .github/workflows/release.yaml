@@ -35,8 +35,11 @@ jobs:
       # Publish the GitHub release and its assets.
       contents: write
       # Keyless signing: cosign exchanges the workflow's OIDC token for a
-      # short-lived Fulcio certificate bound to this workflow@tag identity.
+      # short-lived Fulcio certificate bound to this workflow@tag identity;
+      # the attestation below is signed the same way.
       id-token: write
+      # Store the build provenance attestations.
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,3 +59,22 @@ jobs:
         run: |
           # shellcheck disable=SC1010 # `do` is just's shared-task namespace, not the shell keyword.
           just do release --ci
+
+      # Build provenance for what goreleaser published: every archive, every
+      # SBOM and checksums.txt a subject (the cosign bundle beside them is a
+      # signature, not a subject), so nothing fetched goes unattested: verifiable with
+      # `gh attestation verify <asset> --repo <owner>/<repo>` wherever gh is,
+      # no cosign needed, which is how a bootstrap verifies the binary it
+      # fetches before any tool exists. The cosign bundle over checksums.txt
+      # stays the signature. The paths are goreleaser's dist (.release-go.yaml;
+      # limen's model is .build/release) and its archive format. GitHub serves
+      # attestations for public repositories on every plan and for private
+      # ones on Enterprise Cloud only, so a private repository skips this and
+      # keeps the bundle.
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        if: ${{ !github.event.repository.private }}
+        with:
+          subject-path: |
+            .build/release/*.tar.gz
+            .build/release/*.sbom.json
+            .build/release/checksums.txt
