@@ -3,7 +3,7 @@ module github.com/forkcloser/godolint
 go 1.26.8
 
 require (
-	github.com/alecthomas/kong v1.16.1
+	github.com/alecthomas/kong v1.17.0
 	github.com/moby/buildkit v0.34.1
 	github.com/mycophonic/primordium v0.15.1
 	mvdan.cc/sh/v3 v3.14.1
