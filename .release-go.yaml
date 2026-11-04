@@ -40,10 +40,14 @@ checksum:
   name_template: checksums.txt
 
 signs:
-  - cmd: cosign
+  - cmd: just
     artifacts: checksum
     signature: "${artifact}.sigstore.json"
-    args: [sign-blob, --yes, --bundle, "${signature}", "${artifact}"]
+    args:
+      - do
+      - release-sign
+      - "${artifact}"
+      - "${signature}"
 
 # The notes are GitHub's, every pull request merged since the previous tag,
 # grouped by .github/release.yml.
