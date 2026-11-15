@@ -1,15 +1,32 @@
 package rules
 
 import (
+	"maps"
 	"strings"
 
+	"github.com/forkcloser/godolint/internal/config"
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
-// dl3026State tracks stage aliases to allow referencing previous stages.
+const (
+	// An image with no registry in its name comes from Docker Hub, which is
+	// allowed under either of these names.
+	dockerHub     = "docker.io"
+	dockerHubSite = "hub.docker.com"
+
+	// The one host with neither a dot nor a port that is a registry.
+	localhostName = "localhost"
+
+	mountFlag      = "--mount="
+	mountTypeBind  = "bind"
+	mountTypeCache = "cache"
+)
+
+// dl3026State is the aliases of the stages so far: an image named as one of
+// them is that stage, whatever the registries allowed.
 type dl3026State struct {
-	aliases map[string]bool // stage aliases that can be referenced
+	aliases map[string]bool
 }
 
 // DL3026Rule checks for allowed registries.
@@ -19,12 +36,16 @@ type DL3026Rule struct {
 	allowedRegistries []string // Empty means all registries allowed
 }
 
-// DL3026 creates a rule that checks for allowed registries.
-// TODO: Add configuration support to specify allowed registries.
+// DL3026 creates a rule that allows every registry.
 func DL3026() rule.Rule {
+	return DL3026WithConfig(config.Default())
+}
+
+// DL3026WithConfig creates the rule with the registries cfg allows.
+func DL3026WithConfig(cfg *config.Config) rule.Rule {
 	return &DL3026Rule{
 		StatefulRuleBase:  rule.NewStatefulRuleBase(DL3026Meta),
-		allowedRegistries: []string{}, // Empty = all allowed (for now)
+		allowedRegistries: cfg.AllowedRegistries,
 	}
 }
 
@@ -35,70 +56,126 @@ func (*DL3026Rule) InitialState() rule.State {
 	})
 }
 
-// Check validates that FROM uses unique stage aliases.
+// Check reports an image from a registry that is not allowed: the image of a
+// FROM, of a COPY --from, and of a bind or cache mount of a RUN.
+// Ported from DL3026.hs.
 func (r *DL3026Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	currentState := rule.Data[dl3026State](state)
+	current := rule.Data[dl3026State](state)
 
-	from, ok := instruction.(*syntax.From)
-	if !ok {
+	switch inst := instruction.(type) {
+	case *syntax.From:
+		// The stage's own alias joins after its image is judged: an image
+		// named as its own alias is not an earlier stage.
+		allowed := r.allows(inst.Image.Image, current.aliases)
+
+		if inst.Image.Alias != nil {
+			aliases := maps.Clone(current.aliases)
+			aliases[*inst.Image.Alias] = true
+			state = state.ReplaceData(dl3026State{aliases: aliases})
+		}
+
+		if allowed {
+			return state
+		}
+
+	case *syntax.Copy:
+		if inst.From == nil || isStageIndex(*inst.From) || r.allows(*inst.From, current.aliases) {
+			return state
+		}
+
+	case *syntax.Run:
+		if r.allowsMounts(inst.Flags, current.aliases) {
+			return state
+		}
+
+	default:
 		return state
 	}
 
-	// Track alias
-	if from.Image.Alias != nil {
-		currentState.aliases[*from.Image.Alias] = true
-	}
-
-	// Check if image is allowed
-	imageName := from.Image.Image
-	registry := extractRegistry(imageName)
-
-	// Check if this is a reference to a previous stage
-	if currentState.aliases[imageName] {
-		return state.ReplaceData(currentState)
-	}
-
-	// If no registries are configured, all are allowed
-	if len(r.allowedRegistries) == 0 {
-		return state.ReplaceData(currentState)
-	}
-
-	// Special case: scratch is always allowed
-	if imageName == scratchImage {
-		return state.ReplaceData(currentState)
-	}
-
-	// Check if registry is in allowlist
-	if !r.isRegistryAllowed(registry) {
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL3026Meta.Code,
-			Severity: DL3026Meta.Severity,
-			Message:  DL3026Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
-	}
-
-	return state.ReplaceData(currentState)
+	return state.AddFailure(rule.Fail(r, line))
 }
 
-// extractRegistry extracts the registry from an image name.
-// If no registry is specified, defaults to docker.io.
-func extractRegistry(imageName string) string {
-	// If image contains /, check if first part is a registry
-	if before, _, ok := strings.Cut(imageName, "/"); ok {
-		firstPart := before
-		// If first part contains a . or :, it's likely a registry
-		if strings.Contains(firstPart, ".") || strings.Contains(firstPart, ":") {
-			return firstPart
+// allowsMounts reports whether every bind and cache mount among flags takes
+// its files from an allowed image. A mount with no from= takes them from
+// the build, and the other types take none from an image.
+func (r *DL3026Rule) allowsMounts(flags []string, aliases map[string]bool) bool {
+	for _, flag := range flags {
+		options, isMount := strings.CutPrefix(flag, mountFlag)
+		if !isMount {
+			continue
+		}
+
+		mountType, from := mountTypeBind, ""
+
+		for option := range strings.SplitSeq(options, ",") {
+			switch key, value, _ := strings.Cut(option, "="); key {
+			case "type":
+				mountType = value
+			case "from":
+				from = value
+			}
+		}
+
+		if from == "" || (mountType != mountTypeBind && mountType != mountTypeCache) {
+			continue
+		}
+
+		if !isStageIndex(from) && !r.allows(from, aliases) {
+			return false
 		}
 	}
 
-	// No explicit registry, default to docker.io
-	return "docker.io"
+	return true
 }
 
-// - Full wildcard: "*".
+// allows reports whether image may be used: an earlier stage, any image when
+// no registry is named as allowed, scratch, or an image of an allowed
+// registry.
+func (r *DL3026Rule) allows(image string, aliases map[string]bool) bool {
+	if aliases[image] || len(r.allowedRegistries) == 0 || image == scratchImage {
+		return true
+	}
+
+	registry, named := imageRegistry(image)
+	if named {
+		return r.isRegistryAllowed(registry)
+	}
+
+	return r.isRegistryAllowed(dockerHub) || r.isRegistryAllowed(dockerHubSite)
+}
+
+// imageRegistry is the registry in an image's name, and whether it has one:
+// the part before the first slash when it is a host, which a dot, a colon or
+// the name localhost makes it. Without one the image comes from Docker Hub.
+func imageRegistry(image string) (string, bool) {
+	host, _, found := strings.Cut(image, "/")
+	if !found {
+		return "", false
+	}
+
+	if strings.ContainsAny(host, ".:") || host == localhostName {
+		return host, true
+	}
+
+	return "", false
+}
+
+// isStageIndex reports whether from names a stage by its number, as
+// COPY --from=0 does: a stage of this build, of no registry.
+func isStageIndex(from string) bool {
+	if from == "" {
+		return false
+	}
+
+	for _, char := range from {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *DL3026Rule) isRegistryAllowed(registry string) bool {
 	for _, allowed := range r.allowedRegistries {
 		if matchRegistry(allowed, registry) {
@@ -109,27 +186,18 @@ func (r *DL3026Rule) isRegistryAllowed(registry string) bool {
 	return false
 }
 
-// matchRegistry checks if a registry matches an allowed pattern.
+// matchRegistry reports whether registry matches an allowed pattern: a
+// leading `*` is any registry that ends as the rest does (so `*` alone is
+// any), a trailing `*` any that starts as the rest does, anything else the
+// registry itself.
 func matchRegistry(allowed, registry string) bool {
-	// Full wildcard
-	if allowed == "*" {
-		return true
-	}
-
-	// Wildcard suffix: *.example.com
-	if strings.HasPrefix(allowed, "*.") {
-		suffix := strings.TrimPrefix(allowed, "*")
-
+	if suffix, ok := strings.CutPrefix(allowed, "*"); ok {
 		return strings.HasSuffix(registry, suffix)
 	}
 
-	// Wildcard prefix: example.*
-	if before, ok := strings.CutSuffix(allowed, ".*"); ok {
-		prefix := before
-
+	if prefix, ok := strings.CutSuffix(allowed, "*"); ok {
 		return strings.HasPrefix(registry, prefix)
 	}
 
-	// Exact match
 	return registry == allowed
 }
