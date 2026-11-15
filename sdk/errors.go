@@ -29,3 +29,16 @@ func (e *RuleError) Error() string {
 func (e *RuleError) Unwrap() error {
 	return e.Err
 }
+
+// ConfigError indicates an option given a value it does not take: Lint
+// returns it, and lints nothing.
+type ConfigError struct {
+	// Option is the option's name, e.g. "WithSeverity".
+	Option string
+	// Value is what it was given.
+	Value string
+}
+
+func (e *ConfigError) Error() string {
+	return fmt.Sprintf("%s does not take %q", e.Option, e.Value)
+}

@@ -264,7 +264,32 @@ sdk.New(sdk.WithDisabledRules("DL3007", "DL3008"))
 
 // WithShellcheck - Enable shellcheck integration
 sdk.New(sdk.WithShellcheck())
+
+// WithShellcheckExclusions - The checks shellcheck leaves out, in place of
+// SC2187, SC1090 and SC1091; with no code, none
+sdk.New(sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2187")))
+
+// WithSeverity - Give the violations of a code another severity
+sdk.New(sdk.WithSeverity(sdk.SeverityError, "DL3006", "SC2086"))
+
+// WithLabelSchema - The labels an image must carry, and how each is written
+// (DL3049, DL3051 to DL3056, DL3058)
+sdk.New(sdk.WithLabelSchema(map[string]sdk.LabelType{
+    "maintainer":                       sdk.LabelEmail,
+    "org.opencontainers.image.version": sdk.LabelSemVer,
+}))
+
+// WithStrictLabels - A label the schema does not name is a violation (DL3050)
+sdk.New(sdk.WithStrictLabels())
+
+// WithTrustedRegistries - The registries an image may come from (DL3026)
+sdk.New(sdk.WithTrustedRegistries("docker.io", "*.example.com"))
+
+// WithDisableIgnorePragma - Read no `# hadolint ignore=` pragma
+sdk.New(sdk.WithDisableIgnorePragma())
 ```
+
+These are hadolint's settings under hadolint's meanings: `ignored`, `override`, `label-schema` (the types `text`, `url`, `spdx`, `hash`, `rfc3339`, `semver`, `email`), `strict-labels`, `trustedRegistries` and `disable-ignore-pragma`. A code given to `WithDisabledRules` or `WithSeverity` may be one shellcheck reports (`SC2086`). A code given several severities gets the gravest, and a disabled code stays disabled whatever severity it is given. An option given a value it does not take (a label type or a severity that is none of the constants) makes `Lint` return a `*sdk.ConfigError`.
 
 ### Rule Sets
 
@@ -292,13 +317,14 @@ for _, info := range sdk.Rules() {
 info, ok := sdk.Rule("DL3006")
 ```
 
-A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has, and its `Message` in hadolint's words. A rule at `SeverityIgnore` (DL1001, DL3057) is off: its violations never reach a `Result`. A violation's message is its rule's, but for a rule about a label, which says `<label>` where the violation names the label (``Label `<label>` is missing.``); any other name in angle brackets (`<package>`, `<version>`) is the violation's text too.
+A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has unless `WithSeverity` gives the code another, and its `Message` in hadolint's words. A rule at `SeverityIgnore` (DL1001, DL3057) is off: its violations never reach a `Result` unless `WithSeverity` gives it a severity. A violation's message is its rule's, but for a rule about a label, which says `<label>` where the violation names the label (``Label `<label>` is missing.``); any other name in angle brackets (`<package>`, `<version>`) is the violation's text too.
 
 ### Typed Errors
 
 ```go
 *sdk.ParseError    // Dockerfile parsing failed
 *sdk.RuleError     // Rule execution failed
+*sdk.ConfigError   // An option was given a value it does not take
 ```
 
 ### Output Format

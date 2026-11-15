@@ -3,11 +3,15 @@ package sdk
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 
+	"github.com/forkcloser/godolint/internal/config"
 	"github.com/forkcloser/godolint/internal/parser"
 	"github.com/forkcloser/godolint/internal/process"
 	"github.com/forkcloser/godolint/internal/rule"
+	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/internal/shell"
 )
 
@@ -15,6 +19,18 @@ import (
 type Linter struct {
 	parser parser.Parser
 	rules  []rule.Rule
+
+	// What the options say of the rules a configuration reaches, and whether
+	// any option said anything.
+	cfg        *config.Config
+	configured bool
+
+	disableIgnorePragma bool
+	overrides           map[rule.Code]rule.Severity
+	ignored             map[rule.Code]bool
+
+	// The first option given a value it does not take; Lint returns it.
+	err error
 }
 
 // Option configures a Linter.
@@ -30,9 +46,9 @@ func WithParser(p parser.Parser) Option {
 
 // WithRules sets custom rules to use for linting.
 // By default, uses AllRules().
-func WithRules(rules []rule.Rule) Option {
+func WithRules(ruleSet []rule.Rule) Option {
 	return func(l *Linter) {
-		l.rules = rules
+		l.rules = ruleSet
 	}
 }
 
@@ -45,15 +61,117 @@ func WithRuleSet(set RuleSet) Option {
 
 // WithDisabledRules returns an option that disables specific rules by their codes.
 // Example: WithDisabledRules("DL3000", "DL3007").
+//
+// No violation with one of the codes reaches a Result, wherever the option
+// stands among the others, and a code shellcheck reports (SC####) is one too.
 func WithDisabledRules(codes ...string) Option {
 	return func(l *Linter) {
 		l.rules = FilterRules(l.rules, codes)
+
+		for _, code := range codes {
+			l.ignored[rule.Code(code)] = true
+		}
+	}
+}
+
+// WithSeverity gives every violation with one of the codes the severity, in
+// place of its rule's: one of SeverityError, SeverityWarning, SeverityInfo
+// and SeverityStyle, as hadolint's override lists. A code given several
+// severities gets the gravest. A code shellcheck reports (SC####) is one
+// too, and a rule that is off (SeverityIgnore: DL1001, DL3057) is reported
+// once it is given one. To silence a rule, WithDisabledRules.
+func WithSeverity(severity Severity, codes ...string) Option {
+	return func(linter *Linter) {
+		grave, ok := map[Severity]rule.Severity{
+			SeverityError:   rule.Error,
+			SeverityWarning: rule.Warning,
+			SeverityInfo:    rule.Info,
+			SeverityStyle:   rule.Style,
+		}[severity]
+		if !ok {
+			linter.refuse("WithSeverity", string(severity))
+
+			return
+		}
+
+		for _, code := range codes {
+			// A graver severity is a smaller one.
+			if current, given := linter.overrides[rule.Code(code)]; !given || grave < current {
+				linter.overrides[rule.Code(code)] = grave
+			}
+		}
+	}
+}
+
+// WithLabelSchema names the labels an image must carry and how the value of
+// each is written: DL3049 reports a stage that lacks one, and DL3051 to
+// DL3056 and DL3058 a value that is empty or not of its type. The map is
+// read when the option is made. Given again, it adds to the schema.
+func WithLabelSchema(schema map[string]LabelType) Option {
+	types := map[LabelType]config.LabelType{
+		LabelText:    config.LabelTypeRawText,
+		LabelURL:     config.LabelTypeURL,
+		LabelSPDX:    config.LabelTypeSPDX,
+		LabelHash:    config.LabelTypeGitHash,
+		LabelRFC3339: config.LabelTypeRFC3339,
+		LabelSemVer:  config.LabelTypeSemVer,
+		LabelEmail:   config.LabelTypeEmail,
+	}
+
+	labels := maps.Clone(schema)
+
+	return func(linter *Linter) {
+		for _, label := range slices.Sorted(maps.Keys(labels)) {
+			labelType, ok := types[labels[label]]
+			if !ok {
+				linter.refuse("WithLabelSchema", string(labels[label]))
+
+				return
+			}
+
+			linter.cfg.LabelSchema[label] = labelType
+		}
+
+		linter.configured = true
+	}
+}
+
+// WithStrictLabels makes a label the schema does not name a violation
+// (DL3050).
+func WithStrictLabels() Option {
+	return func(l *Linter) {
+		l.cfg.StrictLabels = true
+		l.configured = true
+	}
+}
+
+// WithTrustedRegistries names the registries an image may come from: DL3026
+// reports the image of a FROM, of a COPY --from and of a bind or cache mount
+// from any other. A leading `*` matches any registry ending as the rest does
+// (`*.example.com`), a trailing `*` any starting as it does, `*` alone any.
+// An image with no registry in its name is Docker Hub's, trusted as
+// `docker.io` or `hub.docker.com`. Given again, it adds to the list; with no
+// list, every registry is trusted.
+func WithTrustedRegistries(registries ...string) Option {
+	return func(l *Linter) {
+		l.cfg.AllowedRegistries = append(l.cfg.AllowedRegistries, registries...)
+		l.configured = true
+	}
+}
+
+// WithDisableIgnorePragma makes the linter read no ignore pragma
+// (`# hadolint ignore=`, `stage ignore=`, `global ignore=`): what they would
+// silence is reported.
+func WithDisableIgnorePragma() Option {
+	return func(l *Linter) {
+		l.disableIgnorePragma = true
 	}
 }
 
 // shellcheckConfig collects the shellcheck integration settings.
 type shellcheckConfig struct {
-	rcFile string
+	rcFile  string
+	exclude []string
 }
 
 // ShellcheckOption configures the shellcheck integration enabled by WithShellcheck.
@@ -69,17 +187,28 @@ func WithShellcheckRCFile(path string) ShellcheckOption {
 	}
 }
 
+// WithShellcheckExclusions names the checks shellcheck leaves out, in place
+// of the three it leaves out by default as hadolint has it: SC2187 (ash is
+// not a shell it supports), SC1090 and SC1091 (a sourced file it cannot
+// follow). With no code, it leaves out none.
+func WithShellcheckExclusions(codes ...string) ShellcheckOption {
+	return func(c *shellcheckConfig) {
+		c.exclude = slices.Clone(codes)
+	}
+}
+
 // WithShellcheck enables shellcheck integration for RUN instruction validation.
 // Requires the shellcheck binary to be available in PATH.
 func WithShellcheck(scOpts ...ShellcheckOption) Option {
 	return func(linter *Linter) {
-		cfg := shellcheckConfig{}
+		cfg := shellcheckConfig{exclude: shell.DefaultExclude()}
 		for _, opt := range scOpts {
 			opt(&cfg)
 		}
 
 		checker := shell.NewBinaryShellchecker()
 		checker.RCFile = cfg.rcFile
+		checker.Exclude = cfg.exclude
 		scRule := shell.NewShellcheckRule(checker)
 		linter.rules = append(linter.rules, scRule)
 	}
@@ -89,20 +218,39 @@ func WithShellcheck(scOpts ...ShellcheckOption) Option {
 // By default, uses all implemented rules and the buildkit parser.
 func New(opts ...Option) *Linter {
 	lint := &Linter{
-		parser: parser.NewBuildkitParser(),
-		rules:  AllRules(),
+		parser:    parser.NewBuildkitParser(),
+		rules:     AllRules(),
+		cfg:       config.Default(),
+		overrides: map[rule.Code]rule.Severity{},
+		ignored:   map[rule.Code]bool{},
 	}
 
 	for _, opt := range opts {
 		opt(lint)
 	}
 
+	// Once every option has spoken: the rules a configuration reaches are
+	// made with it, whichever option chose the rules.
+	if lint.configured {
+		// The slice may be the caller's (WithRules).
+		lint.rules = slices.Clone(lint.rules)
+
+		for i, r := range lint.rules {
+			lint.rules[i] = rules.WithConfig(r, lint.cfg)
+		}
+	}
+
 	return lint
 }
 
 // Lint lints the given Dockerfile content.
-// The context can be used for cancellation.
+// The context can be used for cancellation. A linter made with an option
+// given a value it does not take lints nothing and returns a *ConfigError.
 func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
+	if l.err != nil {
+		return nil, l.err
+	}
+
 	// Check context cancellation before parsing
 	select {
 	case <-ctx.Done():
@@ -128,8 +276,8 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	}
 
 	// Run rules
-	processor := process.NewProcessor(l.rules)
-	failures := process.WithoutIgnored(processor.Run(instructions))
+	processor := process.NewProcessor(l.rules).WithDisableIgnorePragmas(l.disableIgnorePragma)
+	failures := process.Settle(processor.Run(instructions), l.overrides, l.ignored)
 
 	// Convert to SDK violations
 	violations := make([]Violation, len(failures))
@@ -159,6 +307,13 @@ func (l *Linter) LintFile(ctx context.Context, path string) (*Result, error) {
 	}
 
 	return l.Lint(ctx, dockerfile)
+}
+
+// refuse records the first option given a value it does not take.
+func (l *Linter) refuse(option, value string) {
+	if l.err == nil {
+		l.err = &ConfigError{Option: option, Value: value}
+	}
 }
 
 func convertSeverity(s rule.Severity) Severity {
