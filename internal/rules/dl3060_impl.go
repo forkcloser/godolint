@@ -121,8 +121,7 @@ func checkDL3060(run *syntax.Run) bool {
 
 	cleanAt := firstCommand(parsed.PresentCommands, isYarnCacheClean)
 	if cleanAt < 0 {
-		return hasCacheOrTmpfsMount(run.Flags, ".cache/yarn") ||
-			hasCacheOrTmpfsMount(run.Flags, "/root/.cache/yarn")
+		return hasCacheOrTmpfsMount(run.Flags, ".cache/yarn")
 	}
 
 	return cleanAt >= installAt
