@@ -206,3 +206,19 @@ func TestContractParseErrorAndCancellation(t *testing.T) {
 		t.Errorf("a cancelled context: %v", err)
 	}
 }
+
+// TestContractRuleMessagesAreWhole: a rule's message is its whole
+// description, as the README says of the metadata: never empty, and every
+// backtick span it opens is closed. A message cut at the first literal of a
+// joined one ("Label `", where hadolint goes on with the label's name) fails
+// the second.
+func TestContractRuleMessagesAreWhole(t *testing.T) {
+	t.Parallel()
+
+	for _, r := range sdk.AllRules() {
+		msg := r.Message()
+		if msg == "" || strings.Count(msg, "`")%2 != 0 {
+			t.Errorf("%s: message %q is not a whole description", r.Code(), msg)
+		}
+	}
+}

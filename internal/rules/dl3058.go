@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3058Meta = rule.Meta{
 	Code:     "DL3058",
 	Severity: rule.Warning,
-	Message:  "Label `",
+	Message:  "Label `<label>` is not a valid email format - must conform to RFC5322.",
 }

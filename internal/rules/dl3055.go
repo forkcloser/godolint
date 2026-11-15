@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3055Meta = rule.Meta{
 	Code:     "DL3055",
 	Severity: rule.Warning,
-	Message:  "Label `",
+	Message:  "Label `<label>` is not a valid git hash.",
 }

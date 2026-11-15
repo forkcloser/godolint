@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3052Meta = rule.Meta{
 	Code:     "DL3052",
 	Severity: rule.Warning,
-	Message:  "Label `",
+	Message:  "Label `<label>` is not a valid URL.",
 }

@@ -30,10 +30,13 @@ var (
 	// Regex patterns for extracting Haskell rule metadata.
 	codePattern     = regexp.MustCompile(`code\s*=\s*"(DL\d+)"`)
 	severityPattern = regexp.MustCompile(`severity\s*=\s*(DL\w+)`)
-	// A label rule's message starts as Text.pack "Label `" and goes on with
-	// the label's name; the literal is what the metadata keeps, as for the
-	// label rules written without Text.pack.
-	messagePattern = regexp.MustCompile(`message\s*=\s*\n?\s*(?:Text\.pack\s*)?"([^"]*(?:\\\s*\\[^"]*)*)"`)
+	// A message is one string literal, or literals and variables joined by
+	// <> (the label rules: "Label `" <> label <> "` is missing."), any literal
+	// optionally under Text.pack.
+	messageStartPattern   = regexp.MustCompile(`message\s*=\s*`)
+	messageLiteralPattern = regexp.MustCompile(`^(?:Text\.pack\s*)?"([^"]*)"`)
+	messageVarPattern     = regexp.MustCompile(`^[a-z][A-Za-z0-9_']*`)
+	messageConcatPattern  = regexp.MustCompile(`^\s*<>\s*`)
 	// stringGapPattern is a Haskell string gap inside a message literal.
 	stringGapPattern = regexp.MustCompile(`\\\s+\\`)
 )
@@ -179,18 +182,11 @@ func parseRuleFile(path string) (RuleMetadata, error) {
 
 	rule.Severity = mapSeverity(match[1])
 
-	match = messagePattern.FindStringSubmatch(text)
-	if len(match) <= 1 {
+	msg, ok := parseMessage(text)
+	if !ok {
 		return rule, fmt.Errorf("%w: could not find message", ErrRuleGeneration)
 	}
 
-	// A Haskell string gap (a backslash, whitespace including the line
-	// break, a backslash) is deleted whole by the compiler, indentation
-	// included; the message hadolint emits has one space where the source
-	// breaks its line.
-	msg := stringGapPattern.ReplaceAllString(match[1], "")
-	msg = strings.ReplaceAll(msg, "\\", "")
-	msg = strings.TrimSpace(msg)
 	rule.Message = msg
 
 	// Match patterns like: check (Maintainer _) = False
@@ -219,6 +215,69 @@ func parseRuleFile(path string) (RuleMetadata, error) {
 	rule.CanGenerate = canGenerateImplementation(rule.HaskellCheck)
 
 	return rule, nil
+}
+
+// parseMessage is the message a rule declares, as hadolint's documentation
+// writes it: the literals as they are, and a variable joined between them as
+// its name in angle brackets, so "Label `" <> label <> "` is missing." is
+// "Label `<label>` is missing.". Anything else is refused rather than read in
+// part: a first term that is not a literal, another operator, a function
+// applied to an argument, or an expression that goes on past what was read,
+// on the same line or on a deeper-indented one below.
+func parseMessage(text string) (string, bool) {
+	loc := messageStartPattern.FindStringIndex(text)
+	if loc == nil {
+		return "", false
+	}
+
+	indent := loc[0] - (strings.LastIndex(text[:loc[0]], "\n") + 1)
+	rest := text[loc[1]:]
+
+	var msg strings.Builder
+
+	for first := true; ; first = false {
+		if match := messageLiteralPattern.FindStringSubmatch(rest); match != nil {
+			// A Haskell string gap (a backslash, whitespace including the
+			// line break, a backslash) is deleted whole by the compiler,
+			// indentation included; the message hadolint emits has one
+			// space where the source breaks its line.
+			literal := stringGapPattern.ReplaceAllString(match[1], "")
+			_, _ = msg.WriteString(strings.ReplaceAll(literal, "\\", ""))
+			rest = rest[len(match[0]):]
+		} else if name := messageVarPattern.FindString(rest); name != "" && !first {
+			_, _ = msg.WriteString("<" + name + ">")
+			rest = rest[len(name):]
+		} else {
+			return "", false
+		}
+
+		concat := messageConcatPattern.FindString(rest)
+		if concat == "" {
+			break
+		}
+
+		rest = rest[len(concat):]
+	}
+
+	line, below, _ := strings.Cut(rest, "\n")
+	if strings.TrimSpace(line) != "" || continues(below, indent) {
+		return "", false
+	}
+
+	return strings.TrimSpace(msg.String()), true
+}
+
+// continues reports whether below, the text under a declaration indented by
+// indent, starts with a line of that declaration: its first line that is not
+// blank is indented deeper.
+func continues(below string, indent int) bool {
+	for line := range strings.SplitSeq(below, "\n") {
+		if text := strings.TrimLeft(line, " \t"); text != "" {
+			return len(line)-len(text) > indent
+		}
+	}
+
+	return false
 }
 
 // canGenerateImplementation determines if we can auto-generate Go code from Haskell patterns.

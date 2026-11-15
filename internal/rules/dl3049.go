@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3049Meta = rule.Meta{
 	Code:     "DL3049",
 	Severity: rule.Info,
-	Message:  "Label `",
+	Message:  "Label `<label>` is missing.",
 }

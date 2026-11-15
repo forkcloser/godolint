@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3056Meta = rule.Meta{
 	Code:     "DL3056",
 	Severity: rule.Warning,
-	Message:  "Label `",
+	Message:  "Label `<label>` does not conform to semantic versioning.",
 }
