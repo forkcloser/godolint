@@ -3,6 +3,7 @@ package parser_test
 import (
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -324,5 +325,62 @@ func TestParseRunHeredocShells(t *testing.T) {
 				t.Errorf("%s: the RUN's command is %q, want %q", shebang, run.Command, want)
 			}
 		}
+	}
+}
+
+// TestParseCommentsStandOnTheirLines: every comment of the file is an
+// instruction on the line it is written on, whatever stands between it and
+// the next instruction, before the first one and after the last; a `#` line
+// among the lines of an instruction, in a continuation or a heredoc, is not
+// one.
+func TestParseCommentsStandOnTheirLines(t *testing.T) {
+	t.Parallel()
+
+	dockerfile := strings.Join([]string{
+		"# syntax=docker/dockerfile:1", // 1
+		"# top",                        // 2
+		"#",                            // 3
+		"# above from",                 // 4
+		"FROM a",                       // 5
+		"",                             // 6
+		"## two hashes",                // 7
+		"",                             // 8
+		"RUN true \\",                  // 9
+		"  # inside a continuation",    // 10
+		"  && true",                    // 11
+		"RUN <<EOF",                    // 12
+		"# in a heredoc",               // 13
+		"EOF",                          // 14
+		"  # indented",                 // 15
+		"COPY <<EOF /x",                // 16
+		"# in a copy's heredoc",        // 17
+		"EOF",                          // 18
+		"# after the last",             // 19
+		"",
+	}, "\n")
+
+	instructions, err := parser.NewBuildkitParser().Parse([]byte(dockerfile))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	var got []string
+
+	for _, instruction := range instructions {
+		text := instruction.Instruction.Name()
+		if comment, isComment := instruction.Instruction.(*syntax.Comment); isComment {
+			text = "#" + comment.Text
+		}
+
+		got = append(got, strconv.Itoa(instruction.LineNumber)+" "+text)
+	}
+
+	want := []string{
+		"1 #syntax=docker/dockerfile:1", "2 #top", "3 #", "4 #above from", "5 FROM",
+		"7 ## two hashes", "9 RUN", "12 RUN", "15 #indented", "16 COPY", "19 #after the last",
+	}
+
+	if !slices.Equal(got, want) {
+		t.Errorf("the instructions are\n%q\nwant\n%q", got, want)
 	}
 }

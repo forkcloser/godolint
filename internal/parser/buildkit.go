@@ -57,22 +57,13 @@ func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error)
 	// Convert buildkit AST to our AST format
 	var instructions []syntax.InstructionPos
 
+	comments := commentLines(dockerfile, result.AST.Children)
+
 	for _, child := range result.AST.Children {
-		// First, add any preceding comments as Comment instructions
-		for i, commentText := range child.PrevComment {
-			// Comments come before the instruction, calculate line number
-			// PrevComment is in order, with the first comment being furthest back
-			commentLine := child.StartLine - (len(child.PrevComment) - i)
-
-			// Strip leading/trailing whitespace and # prefix
-			text := strings.TrimSpace(commentText)
-			text = strings.TrimPrefix(text, "#")
-			text = strings.TrimSpace(text)
-
-			instructions = append(instructions, syntax.InstructionPos{
-				Instruction: &syntax.Comment{Text: text},
-				LineNumber:  commentLine,
-			})
+		// The comments that stand before the instruction, each on its line.
+		for len(comments) > 0 && comments[0].LineNumber < child.StartLine {
+			instructions = append(instructions, comments[0])
+			comments = comments[1:]
 		}
 
 		// An instruction the converter refuses (one it does not know, or
@@ -92,7 +83,43 @@ func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error)
 		}
 	}
 
-	return instructions, nil
+	// The comments after the last instruction are comments too.
+	return append(instructions, comments...), nil
+}
+
+// commentLines reads the comments of a Dockerfile from its text, each with
+// the line it stands on: a line whose first character that is no blank is a
+// `#`, outside every instruction. buildkit keeps the comments above an
+// instruction without their lines, forgets those above an empty `#` line and
+// those after the last instruction, and an ignore pragma covers the line
+// after its own and no other, so the line has to be the true one. A `#` line
+// among the lines of an instruction, between two continued lines or in a
+// heredoc, is that instruction's and no comment.
+func commentLines(dockerfile []byte, nodes []*parser.Node) []syntax.InstructionPos {
+	var comments []syntax.InstructionPos
+
+	within := 0
+
+	for idx, line := range strings.Split(string(dockerfile), "\n") {
+		number := idx + 1
+
+		for within < len(nodes) && nodes[within].EndLine < number {
+			within++
+		}
+
+		if within < len(nodes) && nodes[within].StartLine <= number {
+			continue
+		}
+
+		if text, isComment := strings.CutPrefix(strings.TrimSpace(line), "#"); isComment {
+			comments = append(comments, syntax.InstructionPos{
+				Instruction: &syntax.Comment{Text: strings.TrimSpace(text)},
+				LineNumber:  number,
+			})
+		}
+	}
+
+	return comments
 }
 
 // convertNode converts a buildkit AST node to our Instruction type.
