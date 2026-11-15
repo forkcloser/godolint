@@ -79,9 +79,8 @@ func (*DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state
 		}
 
-		// Skip if has cache/tmpfs mount for .cache/pip or /root/.cache/pip
-		if hasCacheOrTmpfsMount(inst.Flags, ".cache/pip") ||
-			hasCacheOrTmpfsMount(inst.Flags, "/root/.cache/pip") {
+		// Skip if pip's cache is a cache or tmpfs mount
+		if hasCacheOrTmpfsMount(inst.Flags, ".cache/pip") {
 			return state
 		}
 
