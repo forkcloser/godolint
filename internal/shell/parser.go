@@ -487,17 +487,6 @@ func HasPipes(ps *ParsedShell) bool {
 	return hasPipe
 }
 
-// isPipName reports whether a name is one pip goes by, as a command or as a
-// python module. Matched exactly, so that pipenv — a different tool — is not.
-func isPipName(name string) bool {
-	switch name {
-	case "pip", "pip2", "pip3":
-		return true
-	default:
-		return false
-	}
-}
-
 // IsPipInstall checks if a command is a pip install command.
 // Ported from Hadolint.Shell.isPipInstall.
 func IsPipInstall(cmd Command) bool {
@@ -520,7 +509,7 @@ func IsPipInstall(cmd Command) bool {
 // python -m pip --quiet install is still an install.
 func runsPipModuleInstall(args []string) bool {
 	for idx := range len(args) - 1 {
-		if args[idx] != "-m" || !isPipName(args[idx+1]) {
+		if args[idx] != "-m" || args[idx+1] != "pip" {
 			continue
 		}
 
