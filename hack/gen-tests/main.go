@@ -54,7 +54,6 @@ type HadolintConfig struct {
 const (
 	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
 	issueOnBuild   = "https://github.com/forkcloser/godolint/issues/182"
-	issueWgetCurl  = "https://github.com/forkcloser/godolint/issues/183"
 	issueTarget    = "https://github.com/forkcloser/godolint/issues/184"
 	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
 )
@@ -89,7 +88,6 @@ var failing = map[string]map[string]string{
 		"warn twice: two stages, wrong labels only":                                 issueStages,
 	},
 	"DL3060": {"ok when omitting yarn cache clean in stage that is not reused later": issueYarnStage},
-	"DL4001": {"only warns on many relevant RUN instructions": issueWgetCurl},
 }
 
 // ruleCodePattern is a rule's code.
