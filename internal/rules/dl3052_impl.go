@@ -55,24 +55,17 @@ func (r *DL3052Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label that should be a URL
-	for _, pair := range label.Pairs {
-		labelType, exists := r.cfg.LabelSchema[pair.Key]
-		if !exists || labelType != config.LabelTypeURL {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeURL }
 
-		// Validate URL
-		if !isValidURL(pair.Value) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3052Meta.Code,
-				Severity: DL3052Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("Label `%s` is not a valid URL.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+	for _, key := range failingLabels(label.Pairs, ofKind, isValidURL) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3052Meta.Code,
+			Severity: DL3052Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("Label `%s` is not a valid URL.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state

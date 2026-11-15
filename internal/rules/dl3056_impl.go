@@ -53,16 +53,14 @@ func (r *DL3056Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	for _, pair := range label.Pairs {
-		if r.cfg.LabelSchema[pair.Key] != config.LabelTypeSemVer || semanticVersion.MatchString(pair.Value) {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeSemVer }
 
+	for _, key := range failingLabels(label.Pairs, ofKind, semanticVersion.MatchString) {
 		state = state.AddFailure(rule.CheckFailure{
 			Code:     DL3056Meta.Code,
 			Severity: DL3056Meta.Severity,
 			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-			Message: fmt.Sprintf("Label `%s` does not conform to semantic versioning.", pair.Key),
+			Message: fmt.Sprintf("Label `%s` does not conform to semantic versioning.", key),
 			Line:    line,
 			Column:  1, // Hardcoded to 1 (matches hadolint)
 		})
