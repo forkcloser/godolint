@@ -48,14 +48,37 @@ type failure struct {
 	Message string `json:"message"`
 }
 
-// run runs the binary with args: exit status, the failures decoded from
-// stdout, stderr.
+// run runs the binary with args, in a directory and with a home that hold
+// no configuration file: exit status, the failures decoded from stdout,
+// stderr.
 func run(t *testing.T, args ...string) (int, []failure, string) {
+	t.Helper()
+
+	empty := t.TempDir()
+
+	return runIn(t, empty, homeEnv(empty), args...)
+}
+
+// homeEnv is the environment that makes home the user's home, and the only
+// place beside the working directory a configuration file is looked for in.
+func homeEnv(home string) []string {
+	return []string{
+		"HOME=" + home,
+		"XDG_CONFIG_HOME=",
+		"APPDATA=" + filepath.Join(home, "AppData"),
+		"USERPROFILE=" + home,
+	}
+}
+
+// runIn runs the binary with args in dir, env laid over the environment.
+func runIn(t *testing.T, dir string, env []string, args ...string) (int, []failure, string) {
 	t.Helper()
 
 	cmd := exec.CommandContext(t.Context(), contractBinary, args...)
 
-	cmd.Env = append(os.Environ(), "LOG_LEVEL=info")
+	cmd.Dir = dir
+
+	cmd.Env = append(append(os.Environ(), "LOG_LEVEL=info"), env...)
 
 	var stdout, stderr strings.Builder
 
@@ -207,7 +230,10 @@ func TestContractShellcheckIntegration(t *testing.T) {
 
 	file := write(t, "Dockerfile", "FROM debian:bookworm\nRUN echo $undefined_var_quoting\n")
 
-	_, failures, _ := run(t, file)
+	// The working directory and the home stay the test's own here: a
+	// shellcheck that is a shim finds the real one through them. A
+	// configuration is named so that none is looked for there.
+	_, failures, _ := runIn(t, "", nil, "--config", write(t, "hadolint.yaml", ""), file)
 
 	var sc []failure
 

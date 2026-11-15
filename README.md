@@ -71,6 +71,56 @@ godolint --shellcheck-rcfile .shellcheckrc Dockerfile
 godolint --log-level debug Dockerfile
 ```
 
+### Configuration
+
+godolint takes hadolint's settings, under hadolint's flags and from hadolint's own configuration file:
+
+```bash
+# Give a rule's violations another severity (--error, --warning, --info, --style)
+godolint --error DL3006 --style DL3059 Dockerfile
+
+# Exit 1 only for a violation of this severity or a graver one (default: info)
+godolint --failure-threshold warning Dockerfile
+
+# Never exit 1 for a violation
+godolint --no-fail Dockerfile
+
+# The registries images may come from (DL3026)
+godolint --trusted-registry docker.io --trusted-registry '*.example.com' Dockerfile
+
+# The labels every image must carry and how each is written (DL3049, DL3051 to
+# DL3056, DL3058), and no other label (DL3050)
+godolint --require-label maintainer:email --require-label version:semver --strict-labels Dockerfile
+
+# A configuration file, and which one is used said on stderr
+godolint --config .hadolint.yaml --verbose Dockerfile
+```
+
+```yaml
+# .hadolint.yaml
+ignored:
+  - DL3008
+override:
+  error:
+    - DL3006
+  style:
+    - DL3059
+trustedRegistries:
+  - docker.io
+  - "*.example.com"
+label-schema:
+  maintainer: email # text, url, spdx, hash, rfc3339, semver or email
+  version: semver
+strict-labels: true
+disable-ignore-pragma: false
+failure-threshold: warning # error, warning, info, style, ignore or none
+no-fail: false
+```
+
+Without `--config`, the file used is the first that exists of `.hadolint.yaml` and `.hadolint.yml` in the working directory; `hadolint.yaml` and `hadolint.yml` in `$XDG_CONFIG_HOME` (or `~/.config`); those two, `config.yaml` and `config.yml` in `~/.hadolint`; `.hadolint.yaml` and `.hadolint.yml` in the home. On Windows the three directories are `%APPDATA%`, `%APPDATA%\hadolint` and `Documents` under the user's profile. The file and the command line add up as in hadolint: a list is the file's and the command line's together, a switch is on when either turns it on, the failure threshold is the command line's when it gives one, and a label both name keeps the file's type. A code given several severities gets the gravest.
+
+A file is obeyed whole or not at all, where hadolint lints with its defaults when it cannot take one. A key hadolint does not have is an error naming it. So are a label type or a threshold that is not one, a label left with no type, and a `format` or `formats` other than `json`, the one format godolint writes. `no-color` is accepted: the JSON has no colour. hadolint's environment variables (`HADOLINT_IGNORE`, `HADOLINT_FAILURE_THRESHOLD` and the others, `NO_COLOR`) are not read.
+
 ### Ignore pragmas
 
 A Dockerfile silences rules with hadolint's pragmas, in a comment:
@@ -349,8 +399,8 @@ godolint outputs JSON arrays of violations:
 ```
 
 Exit codes:
-- `0`: No violations
-- `1`: Violations found — or a usage or runtime error, reported on stderr with nothing on stdout
+- `0`: No violation at the failure threshold or graver. The threshold is `info` unless `--failure-threshold` or the configuration file names another, as in hadolint: a run whose violations are all of the `style` severity exits 0, with the violations on stdout. With `--no-fail`, no violation makes the exit status 1.
+- `1`: A violation at the failure threshold or graver — or a usage or runtime error (a file that cannot be read or parsed, a configuration that cannot be obeyed), reported on stderr with nothing on stdout, whatever `--no-fail` says
 
 ## Architecture
 
