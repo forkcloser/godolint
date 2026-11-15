@@ -54,7 +54,6 @@ type HadolintConfig struct {
 const (
 	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
 	issueOnBuild   = "https://github.com/forkcloser/godolint/issues/182"
-	issueTarget    = "https://github.com/forkcloser/godolint/issues/184"
 	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
 )
 
@@ -65,10 +64,6 @@ const (
 //
 //nolint:gochecknoglobals // a constant table
 var failing = map[string]map[string]string{
-	"DL3008": {
-		"apt-get tolerate target-release":           issueTarget,
-		"apt-get tolerate target-release (ONBUILD)": issueTarget,
-	},
 	"DL3009": {
 		"apt-get cleanup in stage image (ONBUILD)":                                          issueOnBuild,
 		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)": issueOnBuild,

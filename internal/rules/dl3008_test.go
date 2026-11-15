@@ -105,6 +105,38 @@ ruby=1:2.1.*`
 	)
 
 	t.Run(
+		"apt-get tolerate target-release",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN set -e &&\
+ echo "deb http://http.debian.net/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list &&\
+ apt-get update &&\
+ apt-get install -y --no-install-recommends -t jessie-backports openjdk-8-jdk=8u131-b11-1~bpo8+1 &&\
+ rm -rf /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3008")
+		},
+	)
+
+	t.Run(
+		"apt-get tolerate target-release (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN set -e &&\
+ echo "deb http://http.debian.net/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list &&\
+ apt-get update &&\
+ apt-get install -y --no-install-recommends -t jessie-backports openjdk-8-jdk=8u131-b11-1~bpo8+1 &&\
+ rm -rf /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3008")
+		},
+	)
+
+	t.Run(
 		"apt-get version",
 		func(t *testing.T) {
 			t.Parallel()
