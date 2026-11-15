@@ -118,6 +118,22 @@ RUN wget -O - https://some.site | wc -l file > /number`
 	)
 
 	t.Run(
+		"don't warn when the parent stage sets pipefail",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch AS base
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+FROM base AS intermediate
+FROM intermediate
+RUN wget -O - https://some.site | wc -l file > /number`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL4006")
+		},
+	)
+
+	t.Run(
 		"don't warn when zsh is invoked via a non-standard absolute path",
 		func(t *testing.T) {
 			t.Parallel()
@@ -211,6 +227,37 @@ RUN wget -O - https://some.site | wc -l file > /number`
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN wget -O - https://some.site | wc -l file > /number
 FROM scratch as build2
+RUN wget -O - https://some.site | wc -l file > /number`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL4006")
+		},
+	)
+
+	t.Run(
+		"warn when the child stage resets the parent SHELL",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch AS base
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+FROM base
+SHELL ["/bin/sh", "-c"]
+RUN wget -O - https://some.site | wc -l file > /number`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL4006")
+		},
+	)
+
+	t.Run(
+		"warn when the stage name matches an image from a registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch AS base
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+FROM registry.example.com/base
 RUN wget -O - https://some.site | wc -l file > /number`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 

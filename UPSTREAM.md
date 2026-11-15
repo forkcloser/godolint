@@ -6,7 +6,7 @@ pinned hadolint sources (`pins.yaml`, `just generate`), and each rule's behaviou
 written in Go to pass them.
 
 - Ported from: hadolint [`db9e652`](https://github.com/hadolint/hadolint/commit/db9e652935fd4d77790b8e16eef8300f660b73bf), its `master` of 2025-10-30 (v2.14.0 and after), when this port started
-- Ported through: [`8ae25c0`](https://github.com/hadolint/hadolint/commit/8ae25c05945f030b1ad520f1802e4143e7d0055d), hadolint's `master` of 2026-10-14, the pin in `pins.yaml`; reviewed 2026-10-18
+- Ported through: [`1d901b9`](https://github.com/hadolint/hadolint/commit/1d901b9c0b0d0445d19b1a9128d89fa55bb4604e), hadolint's `master` of 2026-10-19, the pin in `pins.yaml`; reviewed 2026-11-14
 
 `just lint` regenerates from the pin and fails on any difference, so the committed rules and
 tests always match it. The range from the fork point to v2.15.1, the first pinned release,

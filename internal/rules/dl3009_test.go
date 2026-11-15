@@ -232,4 +232,16 @@ RUN hey!`
 			testutils.AssertNoViolation(t, violations, "DL3009")
 		},
 	)
+
+	t.Run(
+		"not ok with a non-recursive removal of the apt lists",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get update && apt-get install python && rm /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3009")
+		},
+	)
 }
