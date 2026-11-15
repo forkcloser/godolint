@@ -52,12 +52,7 @@ type HadolintConfig struct {
 
 // The issues of the cases godolint does not pass yet.
 const (
-	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
-	issueOnBuild   = "https://github.com/forkcloser/godolint/issues/182"
-	issueWgetCurl  = "https://github.com/forkcloser/godolint/issues/183"
-	issueTarget    = "https://github.com/forkcloser/godolint/issues/184"
-	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
-	issueHealth    = "https://github.com/forkcloser/godolint/issues/186"
+	issueStages = "https://github.com/forkcloser/godolint/issues/126"
 )
 
 // failing names the cases of hadolint that godolint does not pass, each with
@@ -67,15 +62,6 @@ const (
 //
 //nolint:gochecknoglobals // a constant table
 var failing = map[string]map[string]string{
-	"DL3008": {
-		"apt-get tolerate target-release":           issueTarget,
-		"apt-get tolerate target-release (ONBUILD)": issueTarget,
-	},
-	"DL3009": {
-		"apt-get cleanup in stage image (ONBUILD)":                                          issueOnBuild,
-		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)": issueOnBuild,
-	},
-	"DL3025": {"warn on HEALTHCHECK CMD shell notation": issueHealth},
 	"DL3049": {
 		"don't warn: two stages, inheritance":                                       issueStages,
 		"not ok: single stage, no label":                                            issueStages,
@@ -90,8 +76,6 @@ var failing = map[string]map[string]string{
 		"warn twice: two stages, no labels":                                         issueStages,
 		"warn twice: two stages, wrong labels only":                                 issueStages,
 	},
-	"DL3060": {"ok when omitting yarn cache clean in stage that is not reused later": issueYarnStage},
-	"DL4001": {"only warns on many relevant RUN instructions": issueWgetCurl},
 }
 
 // ruleCodePattern is a rule's code.

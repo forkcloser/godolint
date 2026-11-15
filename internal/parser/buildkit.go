@@ -473,6 +473,8 @@ func convertHealthcheck(node *parser.Node) (*syntax.Healthcheck, error) {
 
 	return &syntax.Healthcheck{
 		Command: command,
+		None:    strings.EqualFold(nextValue(node), "NONE"),
+		IsJSON:  node.Attributes != nil && node.Attributes["json"],
 	}, nil
 }
 

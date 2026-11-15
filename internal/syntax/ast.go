@@ -167,6 +167,10 @@ func (*Entrypoint) Name() string {
 // Healthcheck is ported from Healthcheck in Language.Docker.Syntax.
 type Healthcheck struct {
 	Command string // Health check command
+	// None is HEALTHCHECK NONE, which checks nothing.
+	None bool
+	// IsJSON is whether the command of HEALTHCHECK CMD is in JSON (exec) form.
+	IsJSON bool
 }
 
 // Name returns the instruction name.

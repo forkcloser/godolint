@@ -99,4 +99,16 @@ ENTRYPOINT something`
 			testutils.AssertContainsViolation(t, violations, "DL3025")
 		},
 	)
+
+	t.Run(
+		"warn on HEALTHCHECK CMD shell notation",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `HEALTHCHECK CMD foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3025")
+		},
+	)
 }

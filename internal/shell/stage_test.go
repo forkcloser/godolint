@@ -187,6 +187,18 @@ RUN echo "$foo$bar"`,
 			fails: false,
 		},
 		{
+			name: "The RUN an ONBUILD wraps is checked",
+			dockerfile: `FROM debian
+ONBUILD RUN echo $unquoted`,
+			fails: true,
+		},
+		{
+			name: "A clean RUN in an ONBUILD is clean",
+			dockerfile: `FROM debian
+ONBUILD RUN echo hello`,
+			fails: false,
+		},
+		{
 			name: "A SHELL survives an ENV in the same stage",
 			dockerfile: `SHELL ["/bin/bash", "-c"]
 ENV bar=10

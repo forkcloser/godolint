@@ -57,20 +57,21 @@ func (r *DL4001Rule) Check(line int, state rule.State, instruction syntax.Instru
 		commands := shell.FindCommandNames(parsed)
 		newCurl := currentState.HasCurl
 		newWget := currentState.HasWget
+		usesEither := false
 
 		for _, cmd := range commands {
 			switch cmd {
 			case "curl":
-				newCurl = true
+				newCurl, usesEither = true, true
 			case "wget":
-				newWget = true
+				newWget, usesEither = true, true
 			default:
 				// Other commands are irrelevant to this rule.
 			}
 		}
 
-		// If we just found both in this RUN or now have both, fail
-		if newCurl && newWget && (!currentState.HasCurl || !currentState.HasWget) {
+		// Every RUN that uses one of the two once the stage has used both.
+		if usesEither && newCurl && newWget {
 			return state.
 				ReplaceData(dl4001State{HasCurl: newCurl, HasWget: newWget}).
 				AddFailure(rule.Fail(r, line))

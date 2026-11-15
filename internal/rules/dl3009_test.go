@@ -115,6 +115,22 @@ RUN echo hey!`
 	)
 
 	t.Run(
+		"apt-get cleanup in stage image (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM ubuntu as foo
+RUN apt-get update && apt-get install python
+FROM scratch
+RUN echo hey!`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3009", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"apt-get no cleanup",
 		func(t *testing.T) {
 			t.Parallel()
@@ -496,6 +512,22 @@ RUN hey!`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3009")
+		},
+	)
+
+	t.Run(
+		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM ubuntu as foo
+RUN apt-get update && apt-get install python
+FROM scratch
+RUN hey!`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3009", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 

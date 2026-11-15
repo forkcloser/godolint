@@ -5,6 +5,7 @@ package process
 import (
 	"github.com/forkcloser/godolint/internal/pragma"
 	"github.com/forkcloser/godolint/internal/rule"
+	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
@@ -15,9 +16,9 @@ type Processor struct {
 }
 
 // NewProcessor creates a new processor with the given rules.
-func NewProcessor(rules []rule.Rule) *Processor {
+func NewProcessor(ruleSet []rule.Rule) *Processor {
 	return &Processor{
-		rules:                rules,
+		rules:                ruleSet,
 		disableIgnorePragmas: false,
 	}
 }
@@ -36,26 +37,31 @@ func (p *Processor) WithDisableIgnorePragmas(disable bool) *Processor {
 func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailure {
 	allFailures := []rule.CheckFailure{}
 
-	// For each rule, fold over all instructions with state
+	// For each rule, fold over all instructions with state. A rule hadolint
+	// composes with its onbuild combinator runs a second time, with a state
+	// of its own, over the instructions ONBUILD wraps and no other: an
+	// ONBUILD RUN is no RUN of the stage it stands in. Any other rule never
+	// looks inside an ONBUILD.
 	for _, currentRule := range p.rules {
 		state := currentRule.InitialState()
 
-		// Thread state through each instruction check
+		inOnBuild := rules.InOnBuild(currentRule)
+		wrapped := currentRule.InitialState()
+
 		for _, instrPos := range instructions {
 			state = currentRule.Check(instrPos.LineNumber, state, instrPos.Instruction)
 
-			// If instruction is ONBUILD, also check the unwrapped inner instruction
-			// Ported from hadolint's onbuild combinator pattern
-			if onbuild, ok := instrPos.Instruction.(*syntax.OnBuild); ok {
-				state = currentRule.Check(instrPos.LineNumber, state, onbuild.Inner)
+			if onbuild, ok := instrPos.Instruction.(*syntax.OnBuild); ok && inOnBuild {
+				wrapped = currentRule.Check(instrPos.LineNumber, wrapped, onbuild.Inner)
 			}
 		}
 
 		// Finalize the state (some rules add failures only at the end)
-		state = currentRule.Finalize(state)
+		allFailures = append(allFailures, currentRule.Finalize(state).Failures...)
 
-		// Collect failures from final state
-		allFailures = append(allFailures, state.Failures...)
+		if inOnBuild {
+			allFailures = append(allFailures, currentRule.Finalize(wrapped).Failures...)
+		}
 	}
 
 	// Drop what a line, stage or global ignore pragma silences.

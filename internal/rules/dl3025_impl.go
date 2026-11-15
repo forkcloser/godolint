@@ -5,7 +5,8 @@ import (
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
-// DL3025 creates a rule for checking CMD and ENTRYPOINT use JSON notation.
+// DL3025 creates a rule for checking CMD, ENTRYPOINT and HEALTHCHECK CMD use
+// JSON notation.
 func DL3025() rule.Rule {
 	return rule.NewSimpleRule(
 		DL3025Meta.Code,
@@ -23,6 +24,9 @@ func checkDL3025(instruction syntax.Instruction) bool {
 	case *syntax.Entrypoint:
 		// Fail if using shell form (not JSON)
 		return inst.IsJSON
+	case *syntax.Healthcheck:
+		// HEALTHCHECK NONE has no command to write in either form.
+		return inst.None || inst.IsJSON
 	}
 
 	return true

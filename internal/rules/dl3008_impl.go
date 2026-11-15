@@ -48,8 +48,9 @@ func aptGetPackages(cmd shell.Command) []string {
 		return nil
 	}
 
-	// Get arguments without flags, excluding "install" itself
-	args := shell.GetArgsNoFlags(cmd)
+	// Get arguments without flags, excluding "install" itself. The release a
+	// -t names is not a package.
+	args := shell.GetArgsNoFlags(shell.DropFlagArg([]string{"t", "target-release"}, cmd))
 
 	var packages []string
 

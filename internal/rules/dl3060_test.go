@@ -274,6 +274,21 @@ RUN hey!`
 	)
 
 	t.Run(
+		"ok when omitting yarn cache clean in stage that is not reused later",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM node:lts-alpine as foo
+RUN yarn install foo
+FROM scratch
+RUN hey!`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3060")
+		},
+	)
+
+	t.Run(
 		"ok when omitting yarn cache clean in stage that is not reused later (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()

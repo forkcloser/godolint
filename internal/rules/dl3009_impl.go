@@ -1,6 +1,9 @@
 package rules
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/shell"
 	"github.com/forkcloser/godolint/internal/syntax"
@@ -11,17 +14,9 @@ type dl3009State struct {
 	lastFrom    *syntax.BaseImage // Last FROM instruction
 	dockerClean bool              // Whether docker-clean is enabled
 	stages      map[string]int    // map[alias]line - tracks stage names
-	forgets     map[int]string    // map[line]alias - tracks lines that forgot cleanup
-}
-
-// stageAlias is the alias of the stage being processed, empty when the stage
-// has none: what a forgotten cleanup is recorded and reported against.
-func (s dl3009State) stageAlias() string {
-	if s.lastFrom == nil || s.lastFrom.Alias == nil {
-		return ""
-	}
-
-	return *s.lastFrom.Alias
+	// forgets is the lines of the RUNs that forgot the cleanup, each with
+	// the stage it stands in, nil before any FROM.
+	forgets map[int]*syntax.BaseImage
 }
 
 // DL3009Rule checks for deletion of apt lists after apt update.
@@ -52,7 +47,7 @@ func (*DL3009Rule) InitialState() rule.State {
 	return rule.EmptyState(dl3009State{
 		dockerClean: true,
 		stages:      make(map[string]int),
-		forgets:     make(map[int]string),
+		forgets:     make(map[int]*syntax.BaseImage),
 	})
 }
 
@@ -92,7 +87,7 @@ func (*DL3009Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			}
 
 			// Record this line as forgetting cleanup
-			currentState.forgets[line] = currentState.stageAlias()
+			currentState.forgets[line] = currentState.lastFrom
 		} else if disabledDockerClean(parsed) {
 			currentState.dockerClean = false
 		}
@@ -103,44 +98,33 @@ func (*DL3009Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	return state
 }
 
-// Finalize performs final checks after processing all instructions.
-func (*DL3009Rule) Finalize(state rule.State) rule.State {
+// Finalize reports the forgotten cleanups of the stages that reach the
+// image, in the order of their lines: the last stage, which is any stage
+// written as the last FROM is, and the stages a later one is built on.
+func (r *DL3009Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3009State](state)
 
-	finalState := state
+	for _, line := range slices.Sorted(maps.Keys(currentState.forgets)) {
+		stage := currentState.forgets[line]
 
-	lastAlias := currentState.stageAlias()
-
-	// Add failures for forgets that matter
-	for line, alias := range currentState.forgets {
-		// Fail if this is the last stage
-		if alias == lastAlias {
-			finalState = finalState.AddFailure(rule.CheckFailure{
-				Code:     DL3009Meta.Code,
-				Severity: DL3009Meta.Severity,
-				Message:  DL3009Meta.Message,
-				Line:     line,
-				Column:   1, // Hardcoded to 1 (matches hadolint)
-			})
-
-			continue
-		}
-
-		// Fail if this stage is used later (alias appears in stages)
-		if alias != "" {
-			if _, used := currentState.stages[alias]; used {
-				finalState = finalState.AddFailure(rule.CheckFailure{
-					Code:     DL3009Meta.Code,
-					Severity: DL3009Meta.Severity,
-					Message:  DL3009Meta.Message,
-					Line:     line,
-					Column:   1, // Hardcoded to 1 (matches hadolint)
-				})
-			}
+		// No image has the empty name, so a stage with no alias is built on
+		// by none.
+		_, builtOn := currentState.stages[aliasOf(stage)]
+		if sameStage(stage, currentState.lastFrom) || builtOn {
+			state = state.AddFailure(rule.Fail(r, line))
 		}
 	}
 
-	return finalState
+	return state
+}
+
+// aliasOf is a stage's alias, empty when it has none or there is no stage.
+func aliasOf(stage *syntax.BaseImage) string {
+	if stage == nil || stage.Alias == nil {
+		return ""
+	}
+
+	return *stage.Alias
 }
 
 func forgotToCleanup(parsed *shell.ParsedShell) bool {

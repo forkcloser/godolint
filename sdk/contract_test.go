@@ -207,6 +207,39 @@ func TestContractParseErrorAndCancellation(t *testing.T) {
 	}
 }
 
+// TestContractOnBuild: a rule reads the instruction an ONBUILD wraps when
+// hadolint applies it there, and then apart from the stage the ONBUILD
+// stands in; the other rules do not look inside an ONBUILD.
+func TestContractOnBuild(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		dockerfile string
+		code       string
+		reported   bool
+	}{
+		// DL3059 (consecutive RUNs) and DL4000 (MAINTAINER) are not applied
+		// inside ONBUILD; DL3008 (apt-get versions) is.
+		"MAINTAINER as written":      {"FROM debian:12\nMAINTAINER x\n", "DL4000", true},
+		"MAINTAINER inside ONBUILD":  {"FROM debian:12\nONBUILD MAINTAINER x\n", "DL4000", false},
+		"an unpinned package":        {"FROM debian:12\nRUN apt-get install -y curl\n", "DL3008", true},
+		"the same inside ONBUILD":    {"FROM debian:12\nONBUILD RUN apt-get install -y curl\n", "DL3008", true},
+		"two RUNs as written":        {"FROM debian:12\nRUN a\nRUN b\n", "DL3059", true},
+		"two RUNs inside ONBUILD":    {"FROM debian:12\nONBUILD RUN a\nONBUILD RUN b\n", "DL3059", false},
+		"an ONBUILD RUN, then a RUN": {"FROM debian:12\nONBUILD RUN a\nRUN b\n", "DL3059", false},
+		"apt lists left in a stage nothing is built on": {
+			"FROM debian:12 AS build\nRUN apt-get update && apt-get install -y curl=1\nFROM scratch\n", "DL3009", false,
+		},
+		"the same RUN inside ONBUILD, which is of no stage": {
+			"FROM debian:12 AS build\nONBUILD RUN apt-get update && apt-get install -y curl=1\nFROM scratch\n", "DL3009", true,
+		},
+	} {
+		if got := slices.Contains(codes(lint(t, tc.dockerfile)), tc.code); got != tc.reported {
+			t.Errorf("%s: %s reported %v, want %v", name, tc.code, got, tc.reported)
+		}
+	}
+}
+
 // TestContractRuleMessagesAreWhole: a rule's message is its whole
 // description, as the README says of the metadata: never empty, and every
 // backtick span it opens is closed. A message cut at the first literal of a
