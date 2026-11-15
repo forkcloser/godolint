@@ -57,7 +57,6 @@ const (
 	issueWgetCurl  = "https://github.com/forkcloser/godolint/issues/183"
 	issueTarget    = "https://github.com/forkcloser/godolint/issues/184"
 	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
-	issueHealth    = "https://github.com/forkcloser/godolint/issues/186"
 )
 
 // failing names the cases of hadolint that godolint does not pass, each with
@@ -75,7 +74,6 @@ var failing = map[string]map[string]string{
 		"apt-get cleanup in stage image (ONBUILD)":                                          issueOnBuild,
 		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)": issueOnBuild,
 	},
-	"DL3025": {"warn on HEALTHCHECK CMD shell notation": issueHealth},
 	"DL3049": {
 		"don't warn: two stages, inheritance":                                       issueStages,
 		"not ok: single stage, no label":                                            issueStages,

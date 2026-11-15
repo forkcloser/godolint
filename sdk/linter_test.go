@@ -66,7 +66,7 @@ func TestLinter_Lint_PassesValidDockerfile(t *testing.T) {
 		`FROM debian:bookworm-slim@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
 WORKDIR /app
 COPY . /app
-HEALTHCHECK --interval=30s CMD exit 0
+HEALTHCHECK --interval=30s CMD ["true"]
 `,
 	)
 
