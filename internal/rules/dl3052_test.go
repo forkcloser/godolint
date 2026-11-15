@@ -39,6 +39,19 @@ func TestDL3052(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label not containing URL (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL urllabel="not-url"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3052", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label containing URL",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3052(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label containing URL (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL urllabel="http://example.com"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3052")
+		},
+	)
+
+	t.Run(
 		"ok with other label not containing URL",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other="foo"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3052")
+		},
+	)
+
+	t.Run(
+		"ok with other label not containing URL (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3052")
 		},

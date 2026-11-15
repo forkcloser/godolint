@@ -33,6 +33,18 @@ func TestDL3004(t *testing.T) {
 	)
 
 	t.Run(
+		"install sudo (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get install sudo`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3004")
+		},
+	)
+
+	t.Run(
 		"sudo",
 		func(t *testing.T) {
 			t.Parallel()
@@ -45,6 +57,19 @@ func TestDL3004(t *testing.T) {
 	)
 
 	t.Run(
+		"sudo (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN sudo apt-get update`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3004", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"sudo chained programs",
 		func(t *testing.T) {
 			t.Parallel()
@@ -53,6 +78,19 @@ func TestDL3004(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3004")
+		},
+	)
+
+	t.Run(
+		"sudo chained programs (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get update && sudo apt-get install`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3004", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 }

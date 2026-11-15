@@ -63,6 +63,18 @@ ENTRYPOINT ["foo", "bar"]`
 	)
 
 	t.Run(
+		"don't warn on HEALTHCHECK CMD json notation",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `HEALTHCHECK CMD [ "foobar" ]`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3025")
+		},
+	)
+
+	t.Run(
 		"warn on CMD",
 		func(t *testing.T) {
 			t.Parallel()

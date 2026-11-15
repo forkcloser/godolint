@@ -33,12 +33,36 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
+		"go install local dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go install .`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
 		"go install with local absolute path",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN go install /go/app/foobar`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go install with local absolute path (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go install /go/app/foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3062")
 		},
@@ -57,12 +81,36 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
+		"go install with local relative path (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go install ./app/foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
 		"go run local dir",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN go run .`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go run local dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run .`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3062")
 		},
@@ -81,6 +129,18 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
+		"go run with local absolute path (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run /go/app/foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
 		"go run with local relative path",
 		func(t *testing.T) {
 			t.Parallel()
@@ -93,26 +153,14 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version not pinned",
+		"go run with local relative path (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN go run example.com/pkg`
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			dockerfile := `RUN go run ./app/foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
-			testutils.AssertContainsViolation(t, violations, "DL3062")
-		},
-	)
-
-	t.Run(
-		"go version not pinned",
-		func(t *testing.T) {
-			t.Parallel()
-
-			dockerfile := `RUN go get example.com/pkg`
-			violations := testutils.LintDockerfile(dockerfile, allRules)
-
-			testutils.AssertContainsViolation(t, violations, "DL3062")
+			testutils.AssertNoViolation(t, violations, "DL3062")
 		},
 	)
 
@@ -129,14 +177,65 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned",
+		"go version not pinned (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN go get example.com/pkg@v1.2.3`
+			dockerfile := `RUN go install example.com/pkg`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version not pinned (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version not pinned (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version not pinned [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
-			testutils.AssertNoViolation(t, violations, "DL3062")
+			testutils.AssertContainsViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version not pinned [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3062")
 		},
 	)
 
@@ -153,11 +252,47 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned",
+		"go version pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go install example.com/pkg@v1.2.3`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg@v1.2.3`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned (ONBUILD) [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN go run example.com/pkg@v1.2.3`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg@v1.2.3`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3062")
@@ -165,14 +300,14 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned as latest",
+		"go version pinned [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN go get example.com/pkg@latest`
+			dockerfile := `RUN go run example.com/pkg@v1.2.3`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
-			testutils.AssertContainsViolation(t, violations, "DL3062")
+			testutils.AssertNoViolation(t, violations, "DL3062")
 		},
 	)
 
@@ -189,7 +324,58 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned as latest",
+		"go version pinned as latest (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go install example.com/pkg@latest`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version pinned as latest (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg@latest`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version pinned as latest (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@latest`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"go version pinned as latest [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get example.com/pkg@latest`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned as latest [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -213,7 +399,31 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned with arguments (2)",
+		"go version pinned with arguments (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@v1.2.3 foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned with arguments (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@v1.2.3 --foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned with arguments [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -237,7 +447,43 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned with flags (2)",
+		"go version pinned with flags (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@v1.2.3 -f`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned with flags (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@v1.2.3 -foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned with flags (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go run example.com/pkg@v1.2.3 --foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"go version pinned with flags [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -249,7 +495,7 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
-		"go version pinned with flags (3)",
+		"go version pinned with flags [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -273,12 +519,37 @@ func TestDL3062(t *testing.T) {
 	)
 
 	t.Run(
+		"version not pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get -tool foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"version pinned",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN go get -tool foobar@v1.2.3`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"version pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get -tool foobar@v1.2.3`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3062")
 		},
@@ -293,6 +564,19 @@ func TestDL3062(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3062")
+		},
+	)
+
+	t.Run(
+		"version pinned as latest (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN go get -tool foobar@latest`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3062", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 }

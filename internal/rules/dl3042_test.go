@@ -33,11 +33,50 @@ func TestDL3042(t *testing.T) {
 	)
 
 	t.Run(
+		"don't match on pipenv (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pipenv install library`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
 		"don't match on pipx",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pipx install software`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"don't match on pipx (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `Run pipx install software`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"don't trigger if PIP_NO_CACHE_DIR is inherited",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base
+ENV PIP_NO_CACHE_DIR=1
+FROM base
+RUN pip install six`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
@@ -57,12 +96,36 @@ func TestDL3042(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with cache mount in cache dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=cache,target=/root/.cache/pip pip install foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
 		"ok with tmpfs mount in cache dir",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN --mount=type=tmpfs,target=/root/.cache/pip pip install foobar`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"ok with tmpfs mount in cache dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=tmpfs,target=/root/.cache/pip pip install foobar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
 		},
@@ -81,12 +144,37 @@ func TestDL3042(t *testing.T) {
 	)
 
 	t.Run(
+		"pip --no-cache-dir not used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3042", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip --no-cache-dir used",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install MySQL_python --no-cache-dir`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"pip --no-cache-dir used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python --no-cache-dir`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
 		},
@@ -105,12 +193,37 @@ func TestDL3042(t *testing.T) {
 	)
 
 	t.Run(
+		"pip2 --no-cache-dir not used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip2 install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3042", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip2 --no-cache-dir used",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip2 install MySQL_python --no-cache-dir`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"pip2 --no-cache-dir used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip2 install MySQL_python --no-cache-dir`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
 		},
@@ -129,12 +242,37 @@ func TestDL3042(t *testing.T) {
 	)
 
 	t.Run(
+		"pip3 --no-cache-dir not used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3042", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip3 --no-cache-dir used",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip3 install --no-cache-dir MySQL_python`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"pip3 --no-cache-dir used (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --no-cache-dir MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
 		},
@@ -154,7 +292,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with falsy values (2)",
+		"respect ENV PIP_NO_CACHE_DIR with falsy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -167,7 +305,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with falsy values (3)",
+		"respect ENV PIP_NO_CACHE_DIR with falsy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -180,7 +318,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with falsy values (4)",
+		"respect ENV PIP_NO_CACHE_DIR with falsy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -206,7 +344,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with truthy values (2)",
+		"respect ENV PIP_NO_CACHE_DIR with truthy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -219,7 +357,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with truthy values (3)",
+		"respect ENV PIP_NO_CACHE_DIR with truthy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -232,7 +370,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect ENV PIP_NO_CACHE_DIR with truthy values (4)",
+		"respect ENV PIP_NO_CACHE_DIR with truthy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -257,7 +395,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with falsy values (2)",
+		"respect RUN PIP_NO_CACHE_DIR=... with falsy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -269,7 +407,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with falsy values (3)",
+		"respect RUN PIP_NO_CACHE_DIR=... with falsy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -281,7 +419,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with falsy values (4)",
+		"respect RUN PIP_NO_CACHE_DIR=... with falsy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -305,7 +443,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with truthy values (2)",
+		"respect RUN PIP_NO_CACHE_DIR=... with truthy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -317,7 +455,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with truthy values (3)",
+		"respect RUN PIP_NO_CACHE_DIR=... with truthy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -329,7 +467,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN PIP_NO_CACHE_DIR=... with truthy values (4)",
+		"respect RUN PIP_NO_CACHE_DIR=... with truthy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -353,7 +491,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values (2)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -365,7 +503,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values (3)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -377,7 +515,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values (4)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with falsy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -401,7 +539,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values (2)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -413,7 +551,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values (3)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -425,7 +563,7 @@ RUN pip install MySQL_python`
 	)
 
 	t.Run(
-		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values (4)",
+		"respect RUN export PIP_NO_CACHE_DIR=... with truthy values [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -433,6 +571,21 @@ RUN pip install MySQL_python`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3042")
+		},
+	)
+
+	t.Run(
+		"trigger if PIP_NO_CACHE_DIR is not inherited",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base
+ENV PIP_NO_CACHE_DIR=1
+FROM debian:buster
+RUN pip install six`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3042")
 		},
 	)
 }

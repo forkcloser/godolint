@@ -21,6 +21,30 @@ func TestDL3029(t *testing.T) {
 	}
 
 	t.Run(
+		"allows platform \"$BUILDPLATFORM\" flag",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM --platform="$BUILDPLATFORM" debian:jessie`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3029")
+		},
+	)
+
+	t.Run(
+		"allows platform \"${BUILDPLATFORM:-}\" flag",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM --platform="${BUILDPLATFORM:-}" debian:jessie`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3029")
+		},
+	)
+
+	t.Run(
 		"allows platform $BUILDPLATFORM flag",
 		func(t *testing.T) {
 			t.Parallel()

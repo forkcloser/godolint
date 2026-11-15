@@ -33,7 +33,207 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (10)",
+		"different install command variants (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [10]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y in && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [11]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y upgrade && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [12]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y up && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [13]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y upgrade-minimal && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [14]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y up-min && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [15]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y reinstall && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [16]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y rei && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y in`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y upgrade`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [4]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y up`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [5]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y upgrade-minimal`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [6]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y up-min`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [7]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y reinstall`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [8]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y rei`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"different install command variants (ONBUILD) [9]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"different install command variants [10]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -45,7 +245,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (11)",
+		"different install command variants [11]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,7 +257,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (12)",
+		"different install command variants [12]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -69,7 +269,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (13)",
+		"different install command variants [13]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -81,7 +281,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (14)",
+		"different install command variants [14]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -93,7 +293,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (15)",
+		"different install command variants [15]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -105,7 +305,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (16)",
+		"different install command variants [16]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -117,7 +317,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (2)",
+		"different install command variants [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -129,7 +329,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (3)",
+		"different install command variants [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -141,7 +341,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (4)",
+		"different install command variants [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -153,7 +353,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (5)",
+		"different install command variants [5]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -165,7 +365,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (6)",
+		"different install command variants [6]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -177,7 +377,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (7)",
+		"different install command variants [7]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -189,7 +389,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (8)",
+		"different install command variants [8]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -201,7 +401,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"different install command variants (9)",
+		"different install command variants [9]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -225,7 +425,59 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"no ok without dnf clean all (2)",
+		"no ok without dnf clean all (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"no ok without dnf clean all (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf in -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"no ok without dnf clean all (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y mariadb-10.4 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"no ok without dnf clean all (ONBUILD) [4]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"no ok without dnf clean all [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -237,7 +489,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"no ok without dnf clean all (3)",
+		"no ok without dnf clean all [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -261,7 +513,33 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with `dnf upgrade` (2)",
+		"not ok with `dnf upgrade` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y upgrade`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with `dnf upgrade` (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y up`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with `dnf upgrade` [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -285,7 +563,46 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with clean before install (2)",
+		"not ok with clean before install (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /var/cache/libdnf5 && dnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with clean before install (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /var/cache/libdnf5 && dnf in -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with clean before install (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /var/cache/libdnf5 && microdnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with clean before install [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -297,7 +614,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with clean before install (3)",
+		"not ok with clean before install [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -309,7 +626,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with clean before install (4)",
+		"not ok with clean before install [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -321,7 +638,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with clean before install (5)",
+		"not ok with clean before install [5]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -345,7 +662,46 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with rm /var/cache/yum (2)",
+		"not ok with rm /var/cache/yum (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y mariadb-10.4 && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with rm /var/cache/yum (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf in -y mariadb-10.4 && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with rm /var/cache/yum (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y mariadb-10.4 && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with rm /var/cache/yum [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -357,7 +713,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with rm /var/cache/yum (3)",
+		"not ok with rm /var/cache/yum [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -381,7 +737,32 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the libdnf5 cache (2)",
+		"ok with any form of recursive removal of the libdnf5 cache (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm -fr /var/cache/libdnf5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm /var/cache/libdnf5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -393,7 +774,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the libdnf5 cache (3)",
+		"ok with any form of recursive removal of the libdnf5 cache [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -405,7 +786,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the libdnf5 cache (4)",
+		"ok with any form of recursive removal of the libdnf5 cache [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -417,7 +798,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the libdnf5 cache (5)",
+		"ok with any form of recursive removal of the libdnf5 cache [5]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -441,7 +822,43 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with cache mount at /var/cache/yum (2)",
+		"ok with cache mount at /var/cache/yum (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=cache,target=/var/cache/libdnf5 dnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with cache mount at /var/cache/yum (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=cache,target=/var/cache/libdnf5 dnf in -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with cache mount at /var/cache/yum (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=cache,target=/var/cache/libdnf5 microdnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with cache mount at /var/cache/yum [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -453,7 +870,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with cache mount at /var/cache/yum (3)",
+		"ok with cache mount at /var/cache/yum [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -477,7 +894,43 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with dnf clean all (2)",
+		"ok with dnf clean all (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y mariadb-10.4 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with dnf clean all (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y mariadb-10.4 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with dnf clean all (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN notdnf install mariadb`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with dnf clean all [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -489,7 +942,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with dnf clean all (3)",
+		"ok with dnf clean all [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -501,7 +954,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with dnf clean all (4)",
+		"ok with dnf clean all [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -525,7 +978,43 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with tmpfs mount at /var/cache/yum (2)",
+		"ok with tmpfs mount at /var/cache/yum (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=tmpfs,target=/var/cache/libdnf5 dnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with tmpfs mount at /var/cache/yum (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=tmpfs,target=/var/cache/libdnf5 dnf in -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with tmpfs mount at /var/cache/yum (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN --mount=type=tmpfs,target=/var/cache/libdnf5 microdnf install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with tmpfs mount at /var/cache/yum [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -537,7 +1026,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with tmpfs mount at /var/cache/yum (3)",
+		"ok with tmpfs mount at /var/cache/yum [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -561,7 +1050,95 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (2)",
+		"strict all-args matching for dnf cleanup (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && dnf clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && dnf clean cache`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [4]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && rm -rf /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [5]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && rm -rf /var/cache/libdnf5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [6]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y bash && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3040", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup (ONBUILD) [7]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /foo/bar && dnf install -y bash && rm -rf /var/cache/libdnf5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for dnf cleanup [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -573,7 +1150,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (3)",
+		"strict all-args matching for dnf cleanup [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -585,7 +1162,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (4)",
+		"strict all-args matching for dnf cleanup [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -597,7 +1174,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (5)",
+		"strict all-args matching for dnf cleanup [5]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -609,7 +1186,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (6)",
+		"strict all-args matching for dnf cleanup [6]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -621,7 +1198,7 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for dnf cleanup (7)",
+		"strict all-args matching for dnf cleanup [7]",
 		func(t *testing.T) {
 			t.Parallel()
 

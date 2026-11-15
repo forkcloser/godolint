@@ -39,6 +39,19 @@ func TestDL3053(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label not containing RFC3339 date (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL datelabel="not-date"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3053", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label containing RFC3339 date",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3053(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label containing RFC3339 date (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL datelabel="2021-03-10T10:26:33.564595127+01:00"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3053")
+		},
+	)
+
+	t.Run(
 		"ok with other label not containing RFC3339 date",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other="doo"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3053")
+		},
+	)
+
+	t.Run(
+		"ok with other label not containing RFC3339 date (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3053")
 		},

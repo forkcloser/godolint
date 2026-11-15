@@ -33,6 +33,19 @@ func TestDL3030(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok when not using `-y` switch (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install httpd-2.4.24 && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3030", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok when using `-y` switch",
 		func(t *testing.T) {
 			t.Parallel()
@@ -45,7 +58,31 @@ func TestDL3030(t *testing.T) {
 	)
 
 	t.Run(
-		"ok when using `-y` switch (2)",
+		"ok when using `-y` switch (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y httpd-2.4.24 && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3030")
+		},
+	)
+
+	t.Run(
+		"ok when using `-y` switch (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN bash -c ` + "`" + `# not even a yum command` + "`" + ``
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3030")
+		},
+	)
+
+	t.Run(
+		"ok when using `-y` switch [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

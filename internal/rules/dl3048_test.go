@@ -33,7 +33,33 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with consecutive dividers (2)",
+		"not ok with consecutive dividers (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL invalid..character="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with consecutive dividers (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL invalid--character="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with consecutive dividers [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,6 +83,19 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with invalid character (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL invalid$character="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"not ok with invalid start and end characters",
 		func(t *testing.T) {
 			t.Parallel()
@@ -69,7 +108,46 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with invalid start and end characters (2)",
+		"not ok with invalid start and end characters (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL .invalid="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with invalid start and end characters (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL -invalid="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with invalid start and end characters (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL 1invalid="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with invalid start and end characters [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -81,7 +159,7 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with invalid start and end characters (3)",
+		"not ok with invalid start and end characters [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -105,7 +183,46 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with reserved namespace (2)",
+		"not ok with reserved namespace (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL com.docker.label="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with reserved namespace (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL io.docker.label="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with reserved namespace (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL org.dockerproject.label="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3048", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with reserved namespace [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -117,7 +234,7 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with reserved namespace (3)",
+		"not ok with reserved namespace [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -141,7 +258,31 @@ func TestDL3048(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with valid labels (2)",
+		"ok with valid labels (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL org.valid-key.label3="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3048")
+		},
+	)
+
+	t.Run(
+		"ok with valid labels (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL validlabel="foo"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3048")
+		},
+	)
+
+	t.Run(
+		"ok with valid labels [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

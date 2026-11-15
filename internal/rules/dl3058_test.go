@@ -39,6 +39,19 @@ func TestDL3058(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label not containing valid email (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL maintainer="not-email"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3058", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label containing valid email",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3058(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label containing valid email (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL maintainer="abcd@google.com"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3058")
+		},
+	)
+
+	t.Run(
 		"ok with other label not containing valid email",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other="doo"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3058")
+		},
+	)
+
+	t.Run(
+		"ok with other label not containing valid email (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3058")
 		},

@@ -33,7 +33,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with clean before install (2)",
+		"not ok with clean before install [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,6 +57,19 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with no clean all (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y mariadb-10.4`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with any form of recursive removal of the yum cache",
 		func(t *testing.T) {
 			t.Parallel()
@@ -69,7 +82,32 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the yum cache (2)",
+		"ok with any form of recursive removal of the yum cache (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -fr /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the yum cache (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the yum cache [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -81,7 +119,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the yum cache (3)",
+		"ok with any form of recursive removal of the yum cache [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -93,7 +131,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with any form of recursive removal of the yum cache (4)",
+		"ok with any form of recursive removal of the yum cache [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -117,6 +155,18 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with rm -rf /var/cache/yum/* (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y mariadb-10.4 && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
 		"ok with yum clean all ",
 		func(t *testing.T) {
 			t.Parallel()
@@ -129,7 +179,31 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with yum clean all  (2)",
+		"ok with yum clean all  (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y mariadb-10.4 && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with yum clean all  (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN bash -c ` + "`" + `# not even a yum command` + "`" + ``
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with yum clean all  [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -153,7 +227,95 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (2)",
+		"strict all-args matching for yum cleanup (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean cache`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [4]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/lib/apt/lists/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [5]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [6]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -rf /var/cache/libdnf5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3032", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup (ONBUILD) [7]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN rm -rf /foo/bar && yum install -y bash && rm -rf /var/cache/yum/*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"strict all-args matching for yum cleanup [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -165,7 +327,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (3)",
+		"strict all-args matching for yum cleanup [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -177,7 +339,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (4)",
+		"strict all-args matching for yum cleanup [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -189,7 +351,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (5)",
+		"strict all-args matching for yum cleanup [5]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -201,7 +363,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (6)",
+		"strict all-args matching for yum cleanup [6]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -213,7 +375,7 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
-		"strict all-args matching for yum cleanup (7)",
+		"strict all-args matching for yum cleanup [7]",
 		func(t *testing.T) {
 			t.Parallel()
 

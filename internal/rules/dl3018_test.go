@@ -33,12 +33,36 @@ func TestDL3018(t *testing.T) {
 	)
 
 	t.Run(
+		"apk add no version pinning single (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add flex=2.6.4-r1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
 		"apk add tilde version pinning single",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN apk add --no-cache git~2.52.0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add tilde version pinning single (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache git~2.52.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3018")
 		},
@@ -52,6 +76,19 @@ func TestDL3018(t *testing.T) {
 			dockerfile := `RUN apk add --no-cache flex=2.6.4-r1 \
  && pip install -r requirements.txt`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add version pinned chained (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache flex=2.6.4-r1 \
+ && pip install -r requirements.txt`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3018")
 		},
@@ -74,6 +111,22 @@ libbz2=1.0.6-r5`
 	)
 
 	t.Run(
+		"apk add version pinned regression (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+flex=2.6.4-r1 \
+libffi=3.2.1-r3 \
+python2=2.7.13-r1 \
+libbz2=1.0.6-r5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
 		"apk add version pinned regression - one missed",
 		func(t *testing.T) {
 			t.Parallel()
@@ -86,6 +139,23 @@ libbz2=1.0.6-r5`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add version pinned regression - one missed (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+flex=2.6.4-r1 \
+libffi \
+python2=2.7.13-r1 \
+libbz2=1.0.6-r5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3018", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -106,6 +176,22 @@ libbz2=1.0.6-r5`
 	)
 
 	t.Run(
+		"apk add version pinned with fuzzy versions (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+  "flex>=2.6.1-r1" \
+  "libffi~3.2.1" \
+  "python3<3.6.12-r2" \
+  "libbz2=~1.0.6-r4"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
 		"apk add version pinning single",
 		func(t *testing.T) {
 			t.Parallel()
@@ -114,6 +200,19 @@ libbz2=1.0.6-r5`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add version pinning single (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add flex`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3018", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -135,6 +234,23 @@ python-dev=1.1.1 build-base=2.2.2 wget=3.3.3 \
 	)
 
 	t.Run(
+		"apk add virtual package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add \
+--virtual build-dependencies \
+python-dev=1.1.1 build-base=2.2.2 wget=3.3.3 \
+&& pip install -r requirements.txt \
+&& python setup.py install \
+&& apk del build-dependencies`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
 		"apk add with repository (-X) without equal sign",
 		func(t *testing.T) {
 			t.Parallel()
@@ -143,6 +259,20 @@ python-dev=1.1.1 build-base=2.2.2 wget=3.3.3 \
 -X https://nl.alpinelinux.org/alpine/edge/testing \
 flow=0.78.0-r0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add with repository (-X) without equal sign (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+-X https://nl.alpinelinux.org/alpine/edge/testing \
+flow=0.78.0-r0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3018")
 		},
@@ -163,6 +293,20 @@ flow=0.78.0-r0`
 	)
 
 	t.Run(
+		"apk add with repository with equal sign (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+--repository=https://nl.alpinelinux.org/alpine/edge/testing \
+flow=0.78.0-r0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
 		"apk add with repository without equal sign",
 		func(t *testing.T) {
 			t.Parallel()
@@ -171,6 +315,20 @@ flow=0.78.0-r0`
 --repository https://nl.alpinelinux.org/alpine/edge/testing \
 flow=0.78.0-r0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add with repository without equal sign (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache \
+--repository https://nl.alpinelinux.org/alpine/edge/testing \
+flow=0.78.0-r0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3018")
 		},
@@ -189,7 +347,31 @@ flow=0.78.0-r0`
 	)
 
 	t.Run(
-		"apk add ~= and =~ version pinning (2)",
+		"apk add ~= and =~ version pinning (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache git~=2.52`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add ~= and =~ version pinning (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add --no-cache git=~2.52`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"apk add ~= and =~ version pinning [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -207,6 +389,18 @@ flow=0.78.0-r0`
 
 			dockerfile := `RUN apk add mypackage-1.1.1.apk`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3018")
+		},
+	)
+
+	t.Run(
+		"don't trigger when installing from .apk file (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apk add mypackage-1.1.1.apk`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3018")
 		},

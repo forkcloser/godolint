@@ -39,6 +39,19 @@ func TestDL3054(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label not containing SPDX identifier (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL spdxlabel="not-spdx"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3054", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label containing SPDX identifier",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3054(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label containing SPDX identifier (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL spdxlabel="MIT"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3054")
+		},
+	)
+
+	t.Run(
 		"ok with other label not containing SPDX identifier",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other="fooo"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3054")
+		},
+	)
+
+	t.Run(
+		"ok with other label not containing SPDX identifier (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3054")
 		},

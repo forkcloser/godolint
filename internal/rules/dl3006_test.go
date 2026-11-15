@@ -49,6 +49,22 @@ FROM img$src AS other`
 	)
 
 	t.Run(
+		"a variable inside the name of a previous stage is ok (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:12 AS base-amd64
+FROM debian:12 AS base-arm64
+FROM base-${TARGETARCH} AS final
+FROM alpine:3 AS img1
+FROM img$src AS other`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
 		"a variable inside the name of an external image is not ok",
 		func(t *testing.T) {
 			t.Parallel()
@@ -58,6 +74,20 @@ FROM myrepo/app-${VARIANT}`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
+		"a variable inside the name of an external image is not ok (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:12 AS base-amd64
+FROM myrepo/app-${VARIANT}`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3006", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -73,6 +103,23 @@ RUN bar
 FROM alpine:3.7
 RUN baz`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
+		"local aliases are OK to be untagged (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM golang:1.9.3-alpine3.7 AS build
+RUN foo
+FROM build as unit-test
+RUN bar
+FROM alpine:3.7
+RUN baz`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3006")
 		},
@@ -120,6 +167,24 @@ RUN baz`
 	)
 
 	t.Run(
+		"other untagged cases are not ok (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM golang:1.9.3-alpine3.7 AS build
+RUN foo
+FROM node as unit-test
+RUN bar
+FROM alpine:3.7
+RUN baz`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3006", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"scratch",
 		func(t *testing.T) {
 			t.Parallel()
@@ -144,7 +209,7 @@ RUN baz`
 	)
 
 	t.Run(
-		"untagged digest is not an error",
+		"untagged digest is not an error [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

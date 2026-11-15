@@ -13,6 +13,11 @@ golangci:
           linters:
             - dupl # a rule's test table looks like every other rule's
             - dupword # Dockerfile fixtures repeat words
+        # A ported case keeps the name hadolint's spec gives it, as written
+        # there.
+        - path: ^internal/rules/dl\d+_test\.go$
+          linters:
+            - misspell
         # hack/ holds the generators that ported hadolint's rules and tests.
         # They are dev-only programs, run by hand and never shipped: printing
         # to stdout is their interface, and the hadolint corpus they parse

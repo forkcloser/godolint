@@ -21,12 +21,96 @@ func TestDL3013(t *testing.T) {
 	}
 
 	t.Run(
+		"pip install --index-url",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo foobar==1.0.0`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --index-url (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo foobar==1.0.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --index-url with --extra-index-url",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo --extra-index-url https://ex-eg.io/foo foobar==1.0.0`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --index-url with --extra-index-url (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo --extra-index-url https://ex-eg.io/foo foobar==1.0.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --index-url with --extra-index-url with basic auth",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://user:pass@eg.com/foo --extra-index-url https://user:pass@ex-eg.io/foo foobar==1.0.0`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --index-url with --extra-index-url with basic auth (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://user:pass@eg.com/foo --extra-index-url https://user:pass@ex-eg.io/foo foobar==1.0.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install --root-user-action argument is not a package",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install --no-cache-dir --root-user-action ignore poetry==1.8.5`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install --root-user-action argument is not a package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --no-cache-dir --root-user-action ignore poetry==1.8.5`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -45,12 +129,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install constraints file - long version argument (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install pykafka --constraint http://foo.bar.baz`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install constraints file - short version argument",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install pykafka -c http://foo.bar.baz`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install constraints file - short version argument (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install pykafka -c http://foo.bar.baz`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -69,6 +177,18 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install excluded version (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install 'alabaster!=0.7'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install flag=value still checks the package",
 		func(t *testing.T) {
 			t.Parallel()
@@ -81,12 +201,157 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install flag=value still checks the package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --root-user-action=ignore mypkg`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"pip install git",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+https://github.com/rtfd/r-ext.git@0.6-alpha#egg=r-ext`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install git (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+https://github.com/rtfd/r-ext.git@0.6-alpha#egg=r-ext`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install git (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+ssh://github.com/rtfd/r-ext.git@0.6-alpha#egg=r-ext`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install git [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+ssh://github.com/rtfd/r-ext.git@0.6-alpha#egg=r-ext`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install https url package",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install https://foo.bar/baz.zip`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install https url package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install https://foo.bar/baz.zip`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install index-url with -i flag",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo foobar==1.0.0`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install index-url with -i flag (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --index-url https://eg.com/foo foobar==1.0.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install local dir",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install foo/bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install local dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install foo/bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install lower bound",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install 'alabaster<0.7'`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install lower bound (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install 'alabaster<0.7'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -105,12 +370,60 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install no cache dir (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python==1.2.2 --no-cache-dir`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install no pip version check",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python==1.2.2 --disable-pip-version-check`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install no pip version check (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python==1.2.2 --disable-pip-version-check`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install requirements",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install -r requirements.txt`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install requirements (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install -r requirements.txt`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -129,12 +442,86 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install requirements with long flag (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --requirement requirements.txt`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install unversioned git",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+https://github.com/rtfd/read-ext.git#egg=read-ext`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install unversioned git (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+https://github.com/rtfd/read-ext.git#egg=read-ext`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"pip install unversioned git (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+ssh://github.com/rtfd/read-ext.git#egg=read-ext`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"pip install unversioned git [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install git+ssh://github.com/rtfd/read-ext.git#egg=read-ext`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install upper bound",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install 'alabaster>=0.7'`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install upper bound (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install 'alabaster>=0.7'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -153,12 +540,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip install use setup.py (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install .`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip install user directory",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install MySQL_python==1.2.2 --user`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip install user directory (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python==1.2.2 --user`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -177,6 +588,19 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version not pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip version not pinned with python -m",
 		func(t *testing.T) {
 			t.Parallel()
@@ -189,12 +613,37 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version not pinned with python -m (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN python -m pip install --index-url url example`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip version pinned",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip install MySQL_python==1.2.2`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip version pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python==1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -213,12 +662,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version pinned with === operator (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python===1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip version pinned with flag --build",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip3 install --build /opt/yamllint yamllint==1.20.0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip version pinned with flag --build (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --build /opt/yamllint yamllint==1.20.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -237,12 +710,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version pinned with flag --ignore-installed (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install --ignore-installed MySQL_python==1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip version pinned with flag --prefix",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip3 install --prefix /opt/yamllint yamllint==1.20.0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip version pinned with flag --prefix (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --prefix /opt/yamllint yamllint==1.20.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -261,12 +758,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version pinned with flag --root (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --root /opt/yamllint yamllint==1.20.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip version pinned with flag --target",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip3 install --target /opt/yamllint yamllint==1.20.0`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip version pinned with flag --target (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --target /opt/yamllint yamllint==1.20.0`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -285,12 +806,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version pinned with flag --trusted-host (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install --trusted-host host example==1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip version pinned with python -m",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN python -m pip install example==1.2.2`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip version pinned with python -m (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN python -m pip install example==1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -309,6 +854,18 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip version pinned with ~= operator (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip install MySQL_python~=1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pip2 version not pinned",
 		func(t *testing.T) {
 			t.Parallel()
@@ -317,6 +874,19 @@ func TestDL3013(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip2 version not pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip2 install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -333,7 +903,31 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
-		"pip3 install from local package (2)",
+		"pip3 install from local package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install mypkg.whl`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip3 install from local package (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install mypkg.tar.gz`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip3 install from local package [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -357,12 +951,37 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pip3 version not pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip2 install MySQL_python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"pip3 version pinned",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pip3 install MySQL_python==1.2.2`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pip3 version pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pip3 install MySQL_python==1.2.2`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -381,12 +1000,36 @@ func TestDL3013(t *testing.T) {
 	)
 
 	t.Run(
+		"pipenv is not pip (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pipenv install black`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
 		"pipx install --python argument is not a package",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN pipx install --python "$(which python)" "poetry==1.8.5"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pipx install --python argument is not a package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pipx install --python "$(which python)" "poetry==1.8.5"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3013")
 		},
@@ -401,6 +1044,19 @@ func TestDL3013(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3013")
+		},
+	)
+
+	t.Run(
+		"pipx version not pinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN pipx install black`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3013", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 }

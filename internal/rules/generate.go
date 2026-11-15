@@ -12,10 +12,10 @@ package rules
 // 1. Extracts metadata (code, severity, message) from hadolint .hs rule files
 //    and generates Go stub files for unimplemented rules
 // 2. Extracts test cases from hadolint test files and generates Go tests
-//    for implemented rules
+//    for implemented rules: every `it`, or a stop on the one it cannot read
 //
 // Rule stubs include placeholder check functions that need manual implementation.
 // Tests are automatically ported from hadolint's test suite.
 
 //go:generate go run ../../hack/gen-rules/main.go $HADOLINT_SRC/src/Hadolint/Rule
-//go:generate go run ../../hack/gen-tests/main.go $HADOLINT_SRC/test/Hadolint/Rule
+//go:generate go run ../../hack/gen-tests $HADOLINT_SRC/test/Hadolint/Rule

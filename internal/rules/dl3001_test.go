@@ -33,6 +33,18 @@ func TestDL3001(t *testing.T) {
 	)
 
 	t.Run(
+		"install ssh (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get install ssh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3001")
+		},
+	)
+
+	t.Run(
 		"invalid cmd",
 		func(t *testing.T) {
 			t.Parallel()
@@ -41,6 +53,19 @@ func TestDL3001(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3001")
+		},
+	)
+
+	t.Run(
+		"invalid cmd (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN top`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3001", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 }

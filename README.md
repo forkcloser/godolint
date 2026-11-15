@@ -415,7 +415,7 @@ go generate ./internal/rules
 This single command:
 - Extracts rule metadata (code, severity, message) from Haskell source
 - Generates Go function stubs for unimplemented rules
-- Converts Haskell test cases to Go tests for implemented rules
+- Converts Haskell test cases to Go tests for implemented rules: every `it` of hadolint's rule specs, read whole (its `ONBUILD` variants, its counts of failures, the Dockerfiles an assertion is mapped over). A block the generator cannot read stops it, and a case godolint does not pass yet is named in the generator with its issue, so no case is left out without a word
 - Reports implementation status
 
 ## Development
