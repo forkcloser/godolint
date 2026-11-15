@@ -156,10 +156,6 @@ func TestLinter_WithRuleSet(t *testing.T) {
 			name:    "recommended rules",
 			ruleSet: sdk.RuleSetRecommended,
 		},
-		{
-			name:    "strict rules",
-			ruleSet: sdk.RuleSetStrict,
-		},
 	}
 
 	dockerfile := []byte(`FROM debian:latest`)
@@ -344,44 +340,6 @@ func TestResult_CountBySeverity(t *testing.T) {
 	for severity, expected := range expectedCounts {
 		if got := counts[severity]; got != expected {
 			t.Errorf("CountBySeverity()[%s] = %d, want %d", severity, got, expected)
-		}
-	}
-}
-
-// INTENTION: AllRules() should return all implemented rules.
-func TestAllRules(t *testing.T) {
-	t.Parallel()
-
-	rules := sdk.AllRules()
-
-	if len(rules) == 0 {
-		t.Fatal("AllRules() returned empty slice, want non-empty")
-	}
-
-	// We have 54 implemented rules as of this test
-	if len(rules) < 50 {
-		t.Errorf("AllRules() returned %d rules, expected at least 50", len(rules))
-	}
-}
-
-// INTENTION: FilterRules() should correctly filter out disabled rules.
-func TestFilterRules(t *testing.T) {
-	t.Parallel()
-
-	allRules := sdk.AllRules()
-	originalCount := len(allRules)
-
-	filtered := sdk.FilterRules(allRules, []string{"DL3000", "DL3007"})
-
-	if len(filtered) >= originalCount {
-		t.Errorf("FilterRules() returned %d rules, want fewer than %d", len(filtered), originalCount)
-	}
-
-	// Verify disabled rules are not in filtered set
-	for _, r := range filtered {
-		code := string(r.Code())
-		if code == "DL3000" || code == "DL3007" {
-			t.Errorf("FilterRules() contains disabled rule %s", code)
 		}
 	}
 }

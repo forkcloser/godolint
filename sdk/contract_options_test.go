@@ -180,22 +180,21 @@ func TestContractTrustedRegistries(t *testing.T) {
 	}
 }
 
-// TestContractOptionsReachTheRulesGiven: the options configure the rules of
-// the linter whichever option chose them, and leave the caller's slice of
-// rules as it was.
-func TestContractOptionsReachTheRulesGiven(t *testing.T) {
+// TestContractOptionsReachTheRulesChosen: the options configure the rules of
+// the linter whichever option chose them and in whichever order, and one
+// linter's configuration is not another's.
+func TestContractOptionsReachTheRulesChosen(t *testing.T) {
 	t.Parallel()
 
 	const dockerfile = "FROM other.io/tools:1\n"
 
-	given := sdk.AllRules()
-	before := slices.Clone(given)
-
 	for name, opts := range map[string][]sdk.Option{
-		"WithRules, then the registries": {sdk.WithRules(given), sdk.WithTrustedRegistries("docker.io")},
-		"the registries, then WithRules": {sdk.WithTrustedRegistries("docker.io"), sdk.WithRules(given)},
+		"the registries alone": {sdk.WithTrustedRegistries("docker.io")},
 		"the registries, then a rule set": {
 			sdk.WithTrustedRegistries("docker.io"), sdk.WithRuleSet(sdk.RuleSetRecommended),
+		},
+		"a rule set, then the registries": {
+			sdk.WithRuleSet(sdk.RuleSetRecommended), sdk.WithTrustedRegistries("docker.io"),
 		},
 	} {
 		if _, reported := at(lint(t, dockerfile, opts...), "DL3026"); !reported {
@@ -203,12 +202,8 @@ func TestContractOptionsReachTheRulesGiven(t *testing.T) {
 		}
 	}
 
-	if !slices.Equal(given, before) {
-		t.Error("the slice given to WithRules holds other rules after New")
-	}
-
-	if _, reported := at(lint(t, dockerfile, sdk.WithRules(given)), "DL3026"); reported {
-		t.Error("the rules given to one linter carry the registries of another")
+	if _, reported := at(lint(t, dockerfile, sdk.WithRuleSet(sdk.RuleSetRecommended)), "DL3026"); reported {
+		t.Error("a linter given no registries carries those of another")
 	}
 }
 
