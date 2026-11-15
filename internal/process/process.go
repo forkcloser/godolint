@@ -3,6 +3,7 @@
 package process
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/forkcloser/godolint/internal/pragma"
@@ -94,6 +95,10 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 // code, then drops those at the Ignore severity, as hadolint's fixSeverity
 // does. The override comes first, so a rule that is off (DL3057) is reported
 // once it is given a severity.
+//
+// What it returns is ordered by line, as hadolint orders what it prints, and
+// by code on one line, so that a run gives the same order every time: the
+// rules do not all report in the order of their lines.
 func Settle(failures []rule.CheckFailure, overrides map[rule.Code]rule.Severity) []rule.CheckFailure {
 	settled := []rule.CheckFailure{}
 
@@ -106,6 +111,10 @@ func Settle(failures []rule.CheckFailure, overrides map[rule.Code]rule.Severity)
 			settled = append(settled, failure)
 		}
 	}
+
+	slices.SortStableFunc(settled, func(left, right rule.CheckFailure) int {
+		return cmp.Or(cmp.Compare(left.Line, right.Line), cmp.Compare(left.Code, right.Code))
+	})
 
 	return settled
 }

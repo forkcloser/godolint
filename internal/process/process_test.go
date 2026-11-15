@@ -151,3 +151,30 @@ func TestRunDoesNotRunAnIgnoredRule(t *testing.T) {
 		}
 	}
 }
+
+// TestSettleOrdersTheFailures: what Settle returns is ordered by line, and by
+// code on one line, whatever order the rules reported in; two failures of
+// one code on one line keep the order they came in.
+func TestSettleOrdersTheFailures(t *testing.T) {
+	t.Parallel()
+
+	reported := []rule.CheckFailure{
+		{Code: "DL3007", Line: 3, Message: "c"},
+		{Code: "DL3000", Line: 1, Message: "a"},
+		{Code: "DL3057", Line: 5, Message: "h"},
+		{Code: "SC2086", Line: 3, Message: "f"},
+		{Code: "DL3010", Line: 3, Message: "d"},
+		{Code: "DL3057", Line: 2, Message: "b"},
+		{Code: "DL3010", Line: 3, Message: "e"},
+		{Code: "DL3004", Line: 4, Message: "g"},
+	}
+
+	var got []string
+	for _, failure := range process.Settle(reported, nil) {
+		got = append(got, failure.Message)
+	}
+
+	if order := strings.Join(got, ""); order != "abcdefgh" {
+		t.Errorf("settled in the order %q, want %q", order, "abcdefgh")
+	}
+}
