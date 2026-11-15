@@ -222,3 +222,107 @@ func TestParsePairs(t *testing.T) {
 		})
 	}
 }
+
+// TestParseRunHeredoc: the script of a RUN written with a heredoc. The body
+// is the script where the heredoc is the whole command, and never an
+// instruction; where a command stands before the heredoc, the script is that
+// command and the body is its input; a body that names an interpreter that
+// is no shell is no script.
+func TestParseRunHeredoc(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		dockerfile string
+		// commands is the Command of every RUN, ONBUILD's included, in order.
+		commands []string
+		// instructions is how many instructions the file holds.
+		instructions int
+	}{
+		{"the body is the script", "FROM a\nRUN <<EOF\napt-get update\nsudo true\nEOF\n", []string{"apt-get update\nsudo true"}, 2},
+		{
+			"body lines that look like instructions are the script's",
+			"FROM a\nRUN <<EOF\nFROM b\nMAINTAINER x\nRUN sudo true\nEOF\nRUN true\n",
+			[]string{"FROM b\nMAINTAINER x\nRUN sudo true", "true"},
+			3,
+		},
+		{"a dash and tabs", "FROM a\nRUN <<-EOF\n\tsudo true\n\t\tsudo false\n\tEOF\n", []string{"sudo true\nsudo false"}, 2},
+		{"a delimiter in double quotes", "FROM a\nRUN <<\"EOF\"\nsudo $x\nEOF\n", []string{"sudo $x"}, 2},
+		{"a delimiter in single quotes", "FROM a\nRUN <<'EOT'\nsudo $x\nEOT\n", []string{"sudo $x"}, 2},
+		{"a flag before the heredoc", "FROM a\nRUN --network=none <<EOF\nsudo true\nEOF\n", []string{"sudo true"}, 2},
+		{"a shell's shebang", "FROM a\nRUN <<EOF\n#!/bin/bash -e\nsudo true\nEOF\n", []string{"#!/bin/bash -e\nsudo true"}, 2},
+		{"a shell's shebang through env", "FROM a\nRUN <<EOF\n#!/usr/bin/env -S bash -e\nsudo true\nEOF\n", []string{"#!/usr/bin/env -S bash -e\nsudo true"}, 2},
+		{"another interpreter's shebang", "FROM a\nRUN <<EOF\n#!/usr/bin/env python3\nsudo = 1\nEOF\n", []string{""}, 2},
+		{"another interpreter's shebang, by path", "FROM a\nRUN <<EOF\n#!/usr/bin/perl\nsudo();\nEOF\n", []string{""}, 2},
+		{"a command fed the heredoc", "FROM a\nRUN python3 <<EOF\nsudo = 1\nEOF\n", []string{"python3"}, 2},
+		{
+			"a command before the heredoc, more after it",
+			"FROM a\nRUN sudo true && cat <<EOF > /etc/motd\nsudo false\nEOF\n",
+			[]string{"sudo true && cat"},
+			2,
+		},
+		{"a heredoc on a descriptor", "FROM a\nRUN cat 3<<EOF\nsudo false\nEOF\n", []string{"cat"}, 2},
+		{"two heredocs and no command", "FROM a\nRUN <<ONE <<TWO\nsudo one\nONE\nsudo two\nTWO\n", []string{""}, 2},
+		{"a heredoc sent to a file", "FROM a\nRUN <<EOF > /out\nsudo true\nEOF\n", []string{""}, 2},
+		{"a heredoc piped on", "FROM a\nRUN <<EOF | sh\nsudo true\nEOF\n", []string{""}, 2},
+		{"a here-string is no heredoc", "FROM a\nRUN cat <<<hello\n", []string{"cat <<<hello"}, 2},
+		{"under ONBUILD", "FROM a\nONBUILD RUN <<EOF\nsudo true\nEOF\nRUN true\n", []string{"sudo true", "true"}, 3},
+		{"under ONBUILD, a command before it", "FROM a\nONBUILD RUN sudo true && cat <<EOF\nx\nEOF\n", []string{"sudo true && cat"}, 2},
+		{"a COPY and an ADD of a heredoc", "FROM a\nCOPY <<EOF /etc/motd\nFROM b\nRUN sudo true\nEOF\nADD <<EOF /x\nhello\nEOF\n", nil, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			instructions, err := parser.NewBuildkitParser().Parse([]byte(tc.dockerfile))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+
+			var commands []string
+
+			for _, instruction := range instructions {
+				inner := instruction.Instruction
+				if onBuild, wrapped := inner.(*syntax.OnBuild); wrapped {
+					inner = onBuild.Inner
+				}
+
+				if run, isRun := inner.(*syntax.Run); isRun {
+					commands = append(commands, run.Command)
+				}
+			}
+
+			if !slices.Equal(commands, tc.commands) {
+				t.Errorf("the RUNs' commands are %q, want %q", commands, tc.commands)
+			}
+
+			if len(instructions) != tc.instructions {
+				t.Errorf("%d instructions, want %d: %v", len(instructions), tc.instructions, instructions)
+			}
+		})
+	}
+}
+
+// TestParseRunHeredocShells: a body that names one of the shells as its
+// interpreter is the script, shebang line and all, under any of their names
+// and at any path.
+func TestParseRunHeredocShells(t *testing.T) {
+	t.Parallel()
+
+	for _, shell := range []string{"sh", "bash", "ash", "dash", "ksh", "zsh"} {
+		for _, shebang := range []string{
+			"#!/bin/" + shell, "#!/usr/local/bin/" + shell + " -eu", "#!/usr/bin/env " + shell, "#!/bin/busybox " + shell,
+		} {
+			want := shebang + "\nsudo true"
+
+			instructions, err := parser.NewBuildkitParser().Parse([]byte("FROM a\nRUN <<EOF\n" + want + "\nEOF\n"))
+			if err != nil || len(instructions) != 2 {
+				t.Fatalf("%s: Parse() = %v, %v; want two instructions", shebang, instructions, err)
+			}
+
+			run, isRun := instructions[1].Instruction.(*syntax.Run)
+			if !isRun || run.Command != want {
+				t.Errorf("%s: the RUN's command is %q, want %q", shebang, run.Command, want)
+			}
+		}
+	}
+}
