@@ -33,7 +33,20 @@ func TestDL3041(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok with options that take a separate value and an unpinned package (2)",
+		"not ok with options that take a separate value and an unpinned package (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --releasever 9 tomcat`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3041", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok with options that take a separate value and an unpinned package [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -72,14 +85,15 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"not ok without dnf version pinning (2)",
+		"not ok without dnf version pinning (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN microdnf install -y tomcat && microdnf clean all`
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			dockerfile := `RUN dnf install -y tomcat && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
-			testutils.AssertContainsViolation(t, violations, "DL3041")
+			testutils.AssertViolationCount(t, violations, "DL3041", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -96,7 +110,20 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"not ok without dnf version pinning - modules (2)",
+		"not ok without dnf version pinning - modules (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf module install -y tomcat && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3041", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok without dnf version pinning - modules [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -120,11 +147,36 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"not ok without dnf version pinning - package name with `-` (2)",
+		"not ok without dnf version pinning - package name with `-` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y rpm-sign && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3041", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok without dnf version pinning - package name with `-` [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN microdnf install -y rpm-sign && microdnf clean all`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"not ok without dnf version pinning [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y tomcat && microdnf clean all`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3041")
@@ -144,7 +196,19 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with a wildcard version (2)",
+		"ok with a wildcard version (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y rspamd-3.*`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with a wildcard version [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -168,7 +232,19 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf group install (2)",
+		"ok with dnf group install (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y group install "Development Tools"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf group install [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -180,7 +256,7 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf group install (3)",
+		"ok with dnf group install [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -192,7 +268,7 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf group install (4)",
+		"ok with dnf group install [4]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -216,12 +292,24 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning (2)",
+		"ok with dnf version pinning (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y tomcat-9.0.1 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning (ONBUILD) [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN microdnf install -y tomcat-9.0.1 && microdnf clean all`
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3041")
 		},
@@ -240,7 +328,43 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning - modules (2)",
+		"ok with dnf version pinning - modules (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf module install -y tomcat:9 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - modules (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf module install -y tomcat:9 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - modules (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN notdnf module install tomcat`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - modules [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -252,7 +376,7 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning - modules (3)",
+		"ok with dnf version pinning - modules [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -276,7 +400,31 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning - package name with `-` (2)",
+		"ok with dnf version pinning - package name with `-` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y rpm-sign-4.16.1.3 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package name with `-` (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y rpm-sign-4.16.1.3 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package name with `-` [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -300,7 +448,31 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning - package name with `-` and `+` (2)",
+		"ok with dnf version pinning - package name with `-` and `+` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y gcc-c++-1.1.1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package name with `-` and `+` (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y gcc-c++-1.1.1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package name with `-` and `+` [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -324,11 +496,47 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with dnf version pinning - package version with epoch (2)",
+		"ok with dnf version pinning - package version with epoch (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package version with epoch (ONBUILD) [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN microdnf install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning - package version with epoch [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with dnf version pinning [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y tomcat-9.0.1 && microdnf clean all`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3041")
@@ -348,7 +556,19 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with options that take a separate value (2)",
+		"ok with options that take a separate value (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y --releasever 9 tomcat-9.0.1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok with options that take a separate value [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -360,7 +580,7 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with options that take a separate value (3)",
+		"ok with options that take a separate value [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -440,12 +660,36 @@ RUN dnf -y install git-core-${version}`
 	)
 
 	t.Run(
+		"ok with version pinning if command is not `dnf` or `microdnf` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN notdnf install openssl-1:1.1.1k`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
 		"ok without version pinning if command is not `dnf` or `microdnf`",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN notdnf install tomcat`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3041")
+		},
+	)
+
+	t.Run(
+		"ok without version pinning if command is not `dnf` or `microdnf` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN notdnf install tomcat`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3041")
 		},

@@ -39,6 +39,19 @@ func TestDL3056(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label not containing semantic version (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL semver="not-sem-ver"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3056", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label containing semantic version",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3056(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label containing semantic version (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL semver="2.0.1-rc1"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3056")
+		},
+	)
+
+	t.Run(
 		"ok with other label not containing semantic version",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other="foo"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3056")
+		},
+	)
+
+	t.Run(
+		"ok with other label not containing semantic version (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3056")
 		},

@@ -34,6 +34,20 @@ USER $OTHER_UID`
 	)
 
 	t.Run(
+		"not ok: UID is a variable that isn't defined (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `ENV APP_UID=1000
+USER $OTHER_UID`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3066", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"not ok: UID is numeric but USER with non-numeric UID follows",
 		func(t *testing.T) {
 			t.Parallel()
@@ -102,7 +116,20 @@ USER $APP_UID`
 	)
 
 	t.Run(
-		"ok: UID and GID are non-numeric, but are defined ENVs (2)",
+		"ok: UID and GID are non-numeric, but are defined ENVs (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `ENV APP_UID=1000
+USER $APP_UID`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3066")
+		},
+	)
+
+	t.Run(
+		"ok: UID and GID are non-numeric, but are defined ENVs [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

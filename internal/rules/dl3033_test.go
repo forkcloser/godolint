@@ -48,6 +48,19 @@ RUN yum -y install git-core-${version}`
 	)
 
 	t.Run(
+		"not ok without yum version pinning (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y tomcat && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3033", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"not ok without yum version pinning - modules",
 		func(t *testing.T) {
 			t.Parallel()
@@ -56,6 +69,19 @@ RUN yum -y install git-core-${version}`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"not ok without yum version pinning - modules (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum module install -y tomcat && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3033", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -128,12 +154,24 @@ RUN yum -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with yum version pinning (2)",
+		"ok with yum version pinning (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y tomcat-9.2 && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"ok with yum version pinning (ONBUILD) [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN bash -c ` + "`" + `# not even a yum command` + "`" + ``
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3033")
 		},
@@ -152,7 +190,31 @@ RUN yum -y install git-core-${version}`
 	)
 
 	t.Run(
-		"ok with yum version pinning - modules (2)",
+		"ok with yum version pinning - modules (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum module install -y tomcat:9 && yum clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"ok with yum version pinning - modules (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN bash -c ` + "`" + `# not even a yum command` + "`" + ``
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"ok with yum version pinning - modules [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -176,6 +238,18 @@ RUN yum -y install git-core-${version}`
 	)
 
 	t.Run(
+		"ok with yum version pinning - package name contains `-` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y rpm-sign-4.16.1.3`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
 		"ok with yum version pinning - package name contains `-` and `+`",
 		func(t *testing.T) {
 			t.Parallel()
@@ -188,11 +262,47 @@ RUN yum -y install git-core-${version}`
 	)
 
 	t.Run(
+		"ok with yum version pinning - package name contains `-` and `+` (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y gcc-c++-1.1.1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
 		"ok with yum version pinning - version contains epoch",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN yum install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"ok with yum version pinning - version contains epoch (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y openssl-1:1.1.1k`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3033")
+		},
+	)
+
+	t.Run(
+		"ok with yum version pinning [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN bash -c ` + "`" + `# not even a yum command` + "`" + ``
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3033")

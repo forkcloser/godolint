@@ -21,6 +21,30 @@ func TestDL3015(t *testing.T) {
 	}
 
 	t.Run(
+		"apt-get install recommends",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get install --no-install-recommends python`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3015")
+		},
+	)
+
+	t.Run(
+		"apt-get install recommends (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get install --no-install-recommends python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3015")
+		},
+	)
+
+	t.Run(
 		"apt-get no install recommends",
 		func(t *testing.T) {
 			t.Parallel()
@@ -33,7 +57,33 @@ func TestDL3015(t *testing.T) {
 	)
 
 	t.Run(
-		"apt-get no install recommends",
+		"apt-get no install recommends (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get install python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3015", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"apt-get no install recommends (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get -y install python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3015", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"apt-get no install recommends [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -51,6 +101,18 @@ func TestDL3015(t *testing.T) {
 
 			dockerfile := `RUN apt-get -o APT::Install-Recommends=false install python`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3015")
+		},
+	)
+
+	t.Run(
+		"apt-get no install recommends via option (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN apt-get -o APT::Install-Recommends=false install python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3015")
 		},

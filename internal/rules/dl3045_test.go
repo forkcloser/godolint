@@ -21,6 +21,68 @@ func TestDL3045(t *testing.T) {
 	}
 
 	t.Run(
+		"not ok: `COPY` to relative destination if `WORKDIR` is set in a previous stage but not inherited",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as stage1
+WORKDIR /usr
+FROM debian:buster
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"not ok: `COPY` to relative destination if `WORKDIR` is set in a previous stage but not inherited (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as stage1
+WORKDIR /usr
+FROM debian:buster
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3045", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok: `COPY` to relative destination if `WORKDIR` is set in a previous stage but not inherited - windows",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as stage1
+WORKDIR c:\system32
+FROM microsoft/windowsservercore
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"not ok: `COPY` to relative destination if `WORKDIR` is set in a previous stage but not inherited - windows (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as stage1
+WORKDIR c:\system32
+FROM microsoft/windowsservercore
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3045", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"not ok: `COPY` with relative destination and no `WORKDIR` set",
 		func(t *testing.T) {
 			t.Parallel()
@@ -29,6 +91,19 @@ func TestDL3045(t *testing.T) {
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"not ok: `COPY` with relative destination and no `WORKDIR` set (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh blubb.sh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3045", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -45,12 +120,201 @@ func TestDL3045(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok: `COPY` with relative destination and no `WORKDIR` set with quotes (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh "blubb.sh"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3045", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in base image",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base
+WORKDIR /usr
+FROM debian:buster as stage-inbetween
+RUN foo
+FROM base
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in base image (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base
+WORKDIR /usr
+FROM debian:buster as stage-inbetween
+RUN foo
+FROM base
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in base image - windows",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as base
+WORKDIR c:\system32
+FROM microsoft/windowsservercore as stage-inbetween
+RUN foo
+FROM base
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in base image - windows (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as base
+WORKDIR c:\system32
+FROM microsoft/windowsservercore as stage-inbetween
+RUN foo
+FROM base
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in previous stage, deep case",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base1
+WORKDIR /usr
+FROM base1 as base2
+RUN foo
+FROM base2
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in previous stage, deep case (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster as base1
+WORKDIR /usr
+FROM base1 as base2
+RUN foo
+FROM base2
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in previous stage, deep case - windows",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as base1
+WORKDIR c:\system32
+FROM base1 as base2
+RUN foo
+FROM base2
+COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set in previous stage, deep case - windows (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM microsoft/windowsservercore as base1
+WORKDIR c:\system32
+FROM base1 as base2
+RUN foo
+FROM base2
+COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set, both within an `ONBUILD` context",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster
+ONBUILD WORKDIR /usr/local/lib
+ONBUILD COPY foo bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` to relative destination if `WORKDIR` has been set, both within an `ONBUILD` context (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:buster
+ONBUILD WORKDIR /usr/local/lib
+ONBUILD COPY foo bar`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"ok: `COPY` with absolute destination and no `WORKDIR` set",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `COPY bla.sh /usr/local/bin/blubb.sh`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` with absolute destination and no `WORKDIR` set (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh /usr/local/bin/blubb.sh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3045")
 		},
@@ -69,12 +333,36 @@ func TestDL3045(t *testing.T) {
 	)
 
 	t.Run(
+		"ok: `COPY` with absolute destination and no `WORKDIR` set - windows (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh d:\mypath\blubb.sh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"ok: `COPY` with absolute destination and no `WORKDIR` set - windows with alternative paths",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `COPY bla.sh c:/system32/blubb.sh`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` with absolute destination and no `WORKDIR` set - windows with alternative paths (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh d:/mypath/blubb.sh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3045")
 		},
@@ -93,12 +381,36 @@ func TestDL3045(t *testing.T) {
 	)
 
 	t.Run(
+		"ok: `COPY` with absolute destination and no `WORKDIR` set - windows with quotes (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh "d:\mypath\blubb.sh"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"ok: `COPY` with absolute destination and no `WORKDIR` set with quotes",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `COPY bla.sh "/usr/local/bin/blubb.s"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` with absolute destination and no `WORKDIR` set with quotes (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY bla.sh "/usr/local/bin/blubb.sh"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3045")
 		},
@@ -117,12 +429,36 @@ func TestDL3045(t *testing.T) {
 	)
 
 	t.Run(
+		"ok: `COPY` with destination being an environment variable 1 (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY src.sh ${SRC_BASE_ENV}`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"ok: `COPY` with destination being an environment variable 2",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `COPY src.sh $SRC_BASE_ENV`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` with destination being an environment variable 2 (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY src.sh $SRC_BASE_ENV`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3045")
 		},
@@ -141,12 +477,36 @@ func TestDL3045(t *testing.T) {
 	)
 
 	t.Run(
+		"ok: `COPY` with destination being an environment variable 3 (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY src.sh "${SRC_BASE_ENV}"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"ok: `COPY` with destination being an environment variable 4",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `COPY src.sh "$SRC_BASE_ENV"`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"ok: `COPY` with destination being an environment variable 4 (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY src.sh "$SRC_BASE_ENV"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3045")
 		},
@@ -181,6 +541,20 @@ COPY bla.sh blubb.sh`
 	)
 
 	t.Run(
+		"ok: `COPY` with relative destination and `WORKDIR` set - windows (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM scratch
+WORKDIR c:\system32
+COPY bla.sh blubb.sh`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
 		"regression: don't crash with single character paths",
 		func(t *testing.T) {
 			t.Parallel()
@@ -189,6 +563,19 @@ COPY bla.sh blubb.sh`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3045")
+		},
+	)
+
+	t.Run(
+		"regression: don't crash with single character paths (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `COPY a b`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3045", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 }

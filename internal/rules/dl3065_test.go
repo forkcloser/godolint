@@ -33,7 +33,7 @@ func TestDL3065(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok: FROM --platform=$TARGETPLATFORM (2)",
+		"not ok: FROM --platform=$TARGETPLATFORM [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,7 +57,7 @@ func TestDL3065(t *testing.T) {
 	)
 
 	t.Run(
-		"ok: FROM --platform not $TARGETPLATFORM (2)",
+		"ok: FROM --platform not $TARGETPLATFORM [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -69,7 +69,7 @@ func TestDL3065(t *testing.T) {
 	)
 
 	t.Run(
-		"ok: FROM --platform not $TARGETPLATFORM (3)",
+		"ok: FROM --platform not $TARGETPLATFORM [3]",
 		func(t *testing.T) {
 			t.Parallel()
 

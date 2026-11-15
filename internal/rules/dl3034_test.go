@@ -33,6 +33,19 @@ func TestDL3034(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok without non-interactive switch (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper install httpd=2.4.24 && zypper clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3034", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with non-interactive switch present",
 		func(t *testing.T) {
 			t.Parallel()
@@ -45,7 +58,55 @@ func TestDL3034(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with non-interactive switch present (2)",
+		"ok with non-interactive switch present (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper install -n httpd=2.4.24 && zypper clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3034")
+		},
+	)
+
+	t.Run(
+		"ok with non-interactive switch present (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper install --non-interactive httpd=2.4.24 && zypper clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3034")
+		},
+	)
+
+	t.Run(
+		"ok with non-interactive switch present (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper install -y httpd=2.4.24 && zypper clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3034")
+		},
+	)
+
+	t.Run(
+		"ok with non-interactive switch present (ONBUILD) [4]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper install --no-confirm httpd=2.4.24 && zypper clean`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3034")
+		},
+	)
+
+	t.Run(
+		"ok with non-interactive switch present [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,7 +118,7 @@ func TestDL3034(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with non-interactive switch present (3)",
+		"ok with non-interactive switch present [3]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -69,7 +130,7 @@ func TestDL3034(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with non-interactive switch present (4)",
+		"ok with non-interactive switch present [4]",
 		func(t *testing.T) {
 			t.Parallel()
 

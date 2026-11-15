@@ -39,6 +39,19 @@ func TestDL3051(t *testing.T) {
 	)
 
 	t.Run(
+		"not ok with label empty (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL emptylabel=""`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3051", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
 		"ok with label not empty",
 		func(t *testing.T) {
 			t.Parallel()
@@ -51,12 +64,36 @@ func TestDL3051(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with label not empty (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL emptylabel="bar"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3051")
+		},
+	)
+
+	t.Run(
 		"ok with other label empty",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `LABEL other=""`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3051")
+		},
+	)
+
+	t.Run(
+		"ok with other label empty (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `LABEL other=""`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3051")
 		},

@@ -33,7 +33,33 @@ func TestDL3035(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok: zypper dist-upgrade (2)",
+		"not ok: zypper dist-upgrade (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper dist-upgrade`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3035", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok: zypper dist-upgrade (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN zypper dup`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3035", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok: zypper dist-upgrade [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

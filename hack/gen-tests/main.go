@@ -4,10 +4,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -21,6 +24,16 @@ type TestCase struct {
 	RuleCode   string
 	Dockerfile string
 	ShouldFail bool // true if ruleCatches, false if ruleCatchesNot
+
+	// OnBuild is a case every RUN of which is wrapped in ONBUILD.
+	OnBuild bool
+	// Exactly is a case that counts the failures: Count of them.
+	Exactly bool
+	Count   int
+	// OnLines is a case every failure of which must be on a line.
+	OnLines bool
+	// Config is the configuration in force for the case, nil for none.
+	Config *HadolintConfig
 }
 
 // RuleTests contains all test cases for a rule.
@@ -32,19 +45,82 @@ type RuleTests struct {
 
 // HadolintConfig represents hadolint configuration for test cases.
 type HadolintConfig struct {
-	LabelSchema  map[string]string // label name -> type (RawText, Email, etc.)
-	StrictLabels bool
+	LabelSchema       map[string]string // label name -> type (RawText, Email, etc.)
+	StrictLabels      bool
+	AllowedRegistries []string
 }
 
-var (
-	// Handles escaped quotes within strings: "ADD \"file.zip\" /app/".
-	simpleTestPattern = regexp.MustCompile(
-		`it\s+"([^"]+)"\s+\$\s+(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+"((?:[^"\\]|\\.)*)"`,
-	)
-
-	// Match multi-line end: in ruleCatches "DL3007" $ Text.unlines dockerFile.
-	multilineEndPattern = regexp.MustCompile(`in\s+(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+\$\s+Text\.unlines`)
+// The issues of the cases godolint does not pass yet.
+const (
+	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
+	issueOnBuild   = "https://github.com/forkcloser/godolint/issues/182"
+	issueWgetCurl  = "https://github.com/forkcloser/godolint/issues/183"
+	issueTarget    = "https://github.com/forkcloser/godolint/issues/184"
+	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
+	issueHealth    = "https://github.com/forkcloser/godolint/issues/186"
 )
+
+// failing names the cases of hadolint that godolint does not pass, each with
+// the issue that says why: a case is ported, or it is here. An entry goes
+// when its issue is fixed, and the generator stops on an entry that names no
+// case, so none outlives its reason.
+//
+//nolint:gochecknoglobals // a constant table
+var failing = map[string]map[string]string{
+	"DL3008": {
+		"apt-get tolerate target-release":           issueTarget,
+		"apt-get tolerate target-release (ONBUILD)": issueTarget,
+	},
+	"DL3009": {
+		"apt-get cleanup in stage image (ONBUILD)":                                          issueOnBuild,
+		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)": issueOnBuild,
+	},
+	"DL3025": {"warn on HEALTHCHECK CMD shell notation": issueHealth},
+	"DL3049": {
+		"don't warn: two stages, inheritance":                                       issueStages,
+		"not ok: single stage, no label":                                            issueStages,
+		"not ok: single stage, no label (ONBUILD)":                                  issueStages,
+		"not ok: single stage, wrong label":                                         issueStages,
+		"not ok: single stage, wrong label (ONBUILD)":                               issueStages,
+		"warn once: multiple results, inheritance, label in one result [2]":         issueStages,
+		"warn once: two stages, label present in second only":                       issueStages,
+		"warn once: two stages, no inheritance, label in last stage, no connection": issueStages,
+		"warn once: two stages, no inheritance, wrong label in one":                 issueStages,
+		"warn twice: two stages, inheritance, no labels":                            issueStages,
+		"warn twice: two stages, no labels":                                         issueStages,
+		"warn twice: two stages, wrong labels only":                                 issueStages,
+	},
+	"DL3060": {"ok when omitting yarn cache clean in stage that is not reused later": issueYarnStage},
+	"DL4001": {"only warns on many relevant RUN instructions": issueWgetCurl},
+}
+
+// ruleCodePattern is a rule's code.
+var ruleCodePattern = regexp.MustCompile(`^DL\d{4}$`)
+
+// misfiled names the codes hadolint's specs assert that are no rule's, each
+// with what it is. A code that is no rule's and is not here stops the
+// generator.
+//
+//nolint:gochecknoglobals // a constant table
+var misfiled = map[string]string{
+	"FROM scratch\nDL3045": "hadolint's own slip (DL3045Spec.hs: the Dockerfile's first line is in the code), " +
+		"where the assertion holds whatever the rule does, no rule having that code",
+}
+
+// notPorted is the reason a case is left out, when there is one. Each is
+// counted and named in the report: nothing is left out without a word.
+func notPorted(testCase TestCase) string {
+	if testCase.Config != nil && len(testCase.Config.AllowedRegistries) > 0 {
+		return "sets allowedRegistries, which DL3026 takes once it has a WithConfig constructor " +
+			"(https://github.com/forkcloser/godolint/issues/125)"
+	}
+
+	if issue, known := failing[testCase.RuleCode][testCase.Name]; known {
+		return "godolint does not pass it (" + issue + ")"
+	}
+
+	return ""
+}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -53,808 +129,139 @@ func main() {
 		os.Exit(1)
 	}
 
-	hadolintTestDir := os.Args[1]
-
-	pattern := filepath.Join(hadolintTestDir, "DL*Spec.hs")
-
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to glob tests: %v\n", err)
+	if err := generate(os.Args[1], os.Stdout); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "%v\n", err)
 
 		os.Exit(1)
+	}
+}
+
+// generate reads every DL spec under dir and writes the test file of every
+// implemented rule into the working directory. A spec it cannot read whole
+// stops it: a case is ported, or named with the reason it is not.
+func generate(dir string, report io.Writer) error {
+	files, err := filepath.Glob(filepath.Join(dir, "DL*Spec.hs"))
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 	}
 
 	if len(files) == 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "No test files found in %s\n", hadolintTestDir)
-
-		os.Exit(1)
+		return fmt.Errorf("%w: no spec in %s", ErrTestGeneration, dir)
 	}
 
+	read := make(map[string][]TestCase)
+	assertions := 0
 	allTests := make(map[string][]TestCase)
-	allConfigs := make(map[string]*HadolintConfig)
+	left := map[string]int{}
 	totalTests := 0
 
 	for _, file := range files {
-		tests, configs, err := parseTestFile(file)
+		// #nosec G304 G703 -- the specs of the pinned hadolint, named by the caller
+		content, err := os.ReadFile(file)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to parse %s: %v\n", file, err)
-
-			continue
+			return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 		}
 
-		for ruleCode, cases := range tests {
-			allTests[ruleCode] = append(allTests[ruleCode], cases...)
-			totalTests += len(cases)
-			// Store config if present (last one wins, but should be same per rule)
-			if cfg, ok := configs[ruleCode]; ok {
-				allConfigs[ruleCode] = cfg
-			}
-		}
-	}
-
-	fmt.Print("# Hadolint Test Generation\n\n")
-	fmt.Printf("Total test files parsed: %d\n", len(files))
-	fmt.Printf("Total test cases extracted: %d\n", totalTests)
-	fmt.Printf("Rules with tests: %d\n\n", len(allTests))
-
-	// Auto-detect implemented rules by checking for _impl.go files
-	implementedRules := []string{}
-
-	for ruleCode := range allTests {
-		implFile := strings.ToLower(ruleCode) + "_impl.go"
-		if _, err := os.Stat(implFile); err == nil {
-			implementedRules = append(implementedRules, ruleCode)
-		}
-	}
-
-	slices.Sort(implementedRules)
-
-	fmt.Printf("Detected %d implemented rules\n\n", len(implementedRules))
-
-	generated := 0
-
-	for _, ruleCode := range implementedRules {
-		cases, ok := allTests[ruleCode]
-		if !ok {
-			fmt.Printf("Warning: No tests found for implemented rule %s\n", ruleCode)
-
-			continue
-		}
-
-		config := allConfigs[ruleCode] // May be nil if no config found
-
-		err := generateTestFile(ruleCode, cases, config)
+		cases, err := readSpec(string(content))
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error generating tests for %s: %v\n", ruleCode, err)
-		} else {
-			fmt.Printf("Generated tests for %s (%d cases)\n", ruleCode, len(cases))
-
-			generated++
+			return fmt.Errorf("%s: %w", filepath.Base(file), err)
 		}
+
+		for _, testCase := range cases {
+			read[testCase.RuleCode] = append(read[testCase.RuleCode], testCase)
+		}
+
+		assertions += len(cases)
 	}
 
-	fmt.Printf("\nGenerated test files: %d\n", generated)
-}
+	for _, ruleCode := range slices.Sorted(maps.Keys(read)) {
+		nameCases(read[ruleCode])
 
-func parseTestFile(path string) (map[string][]TestCase, map[string]*HadolintConfig, error) {
-	// #nosec G304 G703
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", ErrTestGeneration, err)
-	}
+		// A case is filed under the code its assertion gives. One that is
+		// no rule's, or a rule's with no implementation, has no test file
+		// to go to: it is named, or the generator stops.
+		if reason, known := misfiled[ruleCode]; known {
+			left[strconv.Quote(ruleCode)+": "+reason] += len(read[ruleCode])
 
-	text := resolveRuleBinding(string(content))
-	tests := make(map[string][]TestCase)
-	configs := make(map[string]*HadolintConfig)
-
-	config := parseHadolintConfig(text)
-
-	matches := simpleTestPattern.FindAllStringSubmatch(text, -1)
-	for _, match := range matches {
-		if len(match) < 5 {
 			continue
 		}
 
-		testCase := TestCase{
-			Name:       match[1],
-			ShouldFail: match[2] == "ruleCatches",
-			RuleCode:   match[3],
-			Dockerfile: unescapeHaskellString(match[4]),
+		if !ruleCodePattern.MatchString(ruleCode) {
+			return fmt.Errorf("%w: a case asserts the code %q, which is no rule's", ErrTestGeneration, ruleCode)
 		}
 
-		tests[testCase.RuleCode] = append(tests[testCase.RuleCode], testCase)
+		if _, err := os.Stat(strings.ToLower(ruleCode) + "_impl.go"); err != nil {
+			left[ruleCode+": the rule has no implementation"] += len(read[ruleCode])
 
-		if config != nil {
-			configs[testCase.RuleCode] = config
-		}
-	}
-
-	doBlockTests := parseDoBlockTests(text)
-	for _, testCase := range doBlockTests {
-		tests[testCase.RuleCode] = append(tests[testCase.RuleCode], testCase)
-
-		if config != nil {
-			configs[testCase.RuleCode] = config
-		}
-	}
-
-	multilineTests := parseMultilineTests(text)
-	for _, testCase := range multilineTests {
-		tests[testCase.RuleCode] = append(tests[testCase.RuleCode], testCase)
-
-		if config != nil {
-			configs[testCase.RuleCode] = config
-		}
-	}
-
-	letDockerfileTests := parseLetDockerfileTests(text)
-	for _, testCase := range letDockerfileTests {
-		tests[testCase.RuleCode] = append(tests[testCase.RuleCode], testCase)
-
-		if config != nil {
-			configs[testCase.RuleCode] = config
-		}
-	}
-
-	return tests, configs, nil
-}
-
-var (
-	// ruleBindingPattern is a spec naming its rule once: let rule = "DL3065".
-	ruleBindingPattern = regexp.MustCompile(`let\s+rule\s*=\s*"(DL\d+)"`)
-	// ruleVarUsePattern is an assertion written against that binding.
-	ruleVarUsePattern = regexp.MustCompile(
-		`\b(onBuildRuleCatchesNot|onBuildRuleCatches|ruleCatchesNot|ruleCatches)\s+rule\b`,
-	)
-)
-
-// resolveRuleBinding rewrites a spec that binds its rule code to a name
-// (`let rule = "DL3065"`, then `ruleCatches rule …`) into the literal form
-// every parser below reads.
-func resolveRuleBinding(text string) string {
-	match := ruleBindingPattern.FindStringSubmatch(text)
-	if match == nil {
-		return text
-	}
-
-	return ruleVarUsePattern.ReplaceAllString(text, `$1 "`+match[1]+`"`)
-}
-
-// parseLetDockerfileTests handles a Dockerfile bound by `let`, as `dockerfile`
-// or `snippet`, and asserted by name:
-//
-//	it "name" $ do
-//	  let dockerfile =
-//	        Text.unlines
-//	          [ "FROM debian",
-//	            "RUN foo"
-//	          ]
-//	   in do
-//	      ruleCatchesNot "DL3064" dockerfile
-//	      onBuildRuleCatchesNot "DL3064" dockerfile
-//
-// with the list on one line or many, `in` with or without `do`, and the `let`
-// alone on its line when it binds the rule too. The onBuild form is read as
-// the plain one, as the other parsers read it: hadolint wraps only RUN in
-// ONBUILD there. A block that sets its own `?config` is left out, as it is by
-// the other parsers: its expectation depends on configuration the generated
-// test cannot express.
-func parseLetDockerfileTests(text string) []TestCase {
-	var tests []TestCase
-
-	lines := strings.Split(text, "\n")
-	itPattern := regexp.MustCompile(`^(\s*)it\s+"([^"]+)"\s+\$(\s+do)?\s*$`)
-	letPattern := regexp.MustCompile(`^\s*let\b`)
-	boundPattern := regexp.MustCompile(`\b(dockerfile|snippet)\s*=`)
-	configPattern := regexp.MustCompile(`let\s+\?config\s*=`)
-
-	for idx := range lines {
-		itMatch := itPattern.FindStringSubmatch(lines[idx])
-		if itMatch == nil {
 			continue
 		}
 
-		block := blockBelow(lines, idx, len(itMatch[1]))
-		if len(block) == 0 || !letPattern.MatchString(block[0]) {
-			continue
-		}
+		named := map[string]bool{}
 
-		joined := strings.Join(block, "\n")
-		if configPattern.MatchString(joined) {
-			continue
-		}
+		for _, testCase := range read[ruleCode] {
+			named[testCase.Name] = true
 
-		bound := boundPattern.FindStringIndex(joined)
-		if bound == nil {
-			continue
-		}
+			if reason := notPorted(testCase); reason != "" {
+				left[ruleCode+": "+reason]++
 
-		listStart := strings.Index(joined[bound[1]:], "[")
-		if listStart < 0 {
-			continue
-		}
-
-		listStart += bound[1]
-
-		items, listEnd := bracketedStrings(joined[listStart:])
-		if len(items) == 0 || listEnd < 0 {
-			continue
-		}
-
-		dockerfile := strings.Join(items, "\n")
-		tests = append(tests, assertionsByName(itMatch[2], dockerfile, joined[listStart+listEnd:])...)
-	}
-
-	return tests
-}
-
-// blockBelow is the lines after idx that belong to the `it` at idx: every
-// line until one indented no deeper than the `it`, blank lines dropped.
-func blockBelow(lines []string, idx, indent int) []string {
-	var block []string
-
-	for _, line := range lines[idx+1:] {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		if len(line)-len(strings.TrimLeft(line, " ")) <= indent {
-			break
-		}
-
-		block = append(block, line)
-	}
-
-	return block
-}
-
-// bracketedStrings reads the Haskell list literal text starts with, `[ "a",
-// "b" ]`, and returns its strings unescaped and the offset just past the
-// closing bracket, or -1 when the list does not close. Brackets inside a
-// string are text.
-func bracketedStrings(text string) ([]string, int) {
-	quoted := regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
-	depth, inString, escaped := 0, false, false
-
-	for offset, char := range text {
-		switch {
-		case escaped:
-			escaped = false
-		case inString && char == '\\':
-			escaped = true
-		case char == '"':
-			inString = !inString
-		case inString:
-		case char == '[':
-			depth++
-		case char == ']':
-			depth--
-			if depth == 0 {
-				var items []string
-
-				for _, match := range quoted.FindAllStringSubmatch(text[:offset], -1) {
-					items = append(items, unescapeHaskellString(match[1]))
-				}
-
-				return items, offset + 1
-			}
-		}
-	}
-
-	return nil, -1
-}
-
-// assertionsByName reads every `ruleCatches "DLxxxx" dockerfile` (or
-// `snippet`) in text, `in` and `do` and the onBuild prefix allowed, into one
-// case each, numbered past the first as the other parsers number them.
-func assertionsByName(name, dockerfile, text string) []TestCase {
-	assertPattern := regexp.MustCompile(
-		`(?:onBuild)?(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+(?:dockerfile|snippet)\b`,
-	)
-
-	var tests []TestCase
-
-	for count, match := range assertPattern.FindAllStringSubmatch(text, -1) {
-		caseName := name
-		if count > 0 {
-			caseName = fmt.Sprintf("%s (%d)", name, count+1)
-		}
-
-		tests = append(tests, TestCase{
-			Name:       caseName,
-			RuleCode:   match[2],
-			Dockerfile: dockerfile,
-			ShouldFail: match[1] == "ruleCatches",
-		})
-	}
-
-	return tests
-}
-
-// unescapeHaskellString converts Haskell escape sequences to actual characters.
-// Implements complete Haskell single-character escape sequences per Haskell 98 spec.
-func unescapeHaskellString(s string) string {
-	// Process escape sequences using regex to handle them correctly
-	escapePattern := regexp.MustCompile(`\\(.)`)
-	result := escapePattern.ReplaceAllStringFunc(s, func(match string) string {
-		// match is like "\n" or "\t" or "\\" or "\""
-		if len(match) != 2 {
-			return match
-		}
-
-		switch match[1] {
-		case '0':
-			return "\x00" // null
-		case 'a':
-			return "\x07" // alert (bell)
-		case 'b':
-			return "\x08" // backspace
-		case 'f':
-			return "\x0C" // form feed
-		case 'n':
-			return "\n" // newline
-		case 'r':
-			return "\r" // carriage return
-		case 't':
-			return "\t" // horizontal tab
-		case 'v':
-			return "\x0B" // vertical tab
-		case '"':
-			return `"` // double quote
-		case '\'':
-			return "'" // single quote
-		case '\\':
-			return `\` // backslash
-		case '&':
-			return "" // empty string (Haskell string gap)
-		default:
-			// Unknown escape sequence, keep as-is
-			return match
-		}
-	})
-
-	return result
-}
-
-// Example: let ?config = def { labelSchema = Map.fromList [("foo", Rule.RawText)], strictLabels = True }.
-func parseHadolintConfig(text string) *HadolintConfig {
-	config := &HadolintConfig{
-		LabelSchema: make(map[string]string),
-	}
-
-	// Match: let ?config = def { ... }
-	configPattern := regexp.MustCompile(`let\s+\?config\s*=\s*def\s*\{([^}]+)}`)
-
-	configMatch := configPattern.FindStringSubmatch(text)
-	if configMatch == nil {
-		return nil // No config found
-	}
-
-	configBody := configMatch[1]
-
-	// Extract labelSchema: Map.fromList [("label1", Rule.Type1), ...]
-	labelSchemaPattern := regexp.MustCompile(`labelSchema\s*=\s*Map\.fromList\s*\[(.*?)]`)
-
-	labelMatch := labelSchemaPattern.FindStringSubmatch(configBody)
-	if labelMatch != nil {
-		// Parse label entries: ("label", Rule.Type) or ("label", Type)
-		entryPattern := regexp.MustCompile(`\("([^"]+)",\s*(?:Rule\.)?(\w+)\)`)
-
-		entries := entryPattern.FindAllStringSubmatch(labelMatch[1], -1)
-		for _, entry := range entries {
-			if len(entry) >= 3 {
-				labelName := entry[1]
-				labelType := entry[2]
-				config.LabelSchema[labelName] = labelType
-			}
-		}
-	}
-
-	// Extract strictLabels
-	strictPattern := regexp.MustCompile(`strictLabels\s*=\s*(True|False)`)
-
-	strictMatch := strictPattern.FindStringSubmatch(configBody)
-	if strictMatch != nil {
-		config.StrictLabels = strictMatch[1] == "True"
-	}
-
-	// Return nil if no config was actually found
-	if len(config.LabelSchema) == 0 && !config.StrictLabels {
-		return nil
-	}
-
-	return config
-}
-
-func parseDoBlockTests(text string) []TestCase {
-	var tests []TestCase
-
-	lines := strings.Split(text, "\n")
-
-	// Pattern to match: it "test name" $ do
-	doPattern := regexp.MustCompile(`it\s+"([^"]+)"\s+\$\s+do\s*$`)
-	// Pattern to match assertions: ruleCatches "DL3048" "LABEL ..."
-	// or: onBuildRuleCatches "DL3048" "LABEL ..."
-	assertionPattern := regexp.MustCompile(
-		`\s*(onBuild)?(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+"((?:[^"\\]|\\.)*)"`,
-	)
-
-	for idx := range lines {
-		line := lines[idx]
-
-		// Look for "it 'name' $ do" line
-		doMatch := doPattern.FindStringSubmatch(line)
-		if doMatch == nil {
-			continue
-		}
-
-		testName := doMatch[1]
-		baseIndent := len(line) - len(strings.TrimLeft(line, " "))
-
-		// Collect all assertions in this do block
-		assertionCount := 0
-
-		for j := idx + 1; j < len(lines); j++ {
-			currentLine := lines[j]
-
-			// Empty lines are ok
-			if strings.TrimSpace(currentLine) == "" {
 				continue
 			}
 
-			// Check if we've exited the do block (decreased indentation to base level or less)
-			currentIndent := len(currentLine) - len(strings.TrimLeft(currentLine, " "))
-			if currentIndent <= baseIndent {
-				break
-			}
+			allTests[ruleCode] = append(allTests[ruleCode], testCase)
+			totalTests++
+		}
 
-			// Look for assertion pattern
-			assertMatch := assertionPattern.FindStringSubmatch(currentLine)
-			if assertMatch != nil {
-				assertionCount++
-				shouldFail := assertMatch[2] == "ruleCatches"
-				ruleCode := assertMatch[3]
-				dockerfile := unescapeHaskellString(assertMatch[4])
-
-				// Create unique test name if multiple assertions
-				name := testName
-				if assertionCount > 1 {
-					name = fmt.Sprintf("%s (%d)", testName, assertionCount)
-				}
-
-				tests = append(tests, TestCase{
-					Name:       name,
-					RuleCode:   ruleCode,
-					Dockerfile: dockerfile,
-					ShouldFail: shouldFail,
-				})
+		for name := range failing[ruleCode] {
+			if !named[name] {
+				return fmt.Errorf(
+					"%w: %s has no case %q, which is listed as failing",
+					ErrTestGeneration,
+					ruleCode,
+					name,
+				)
 			}
 		}
 	}
 
-	return tests
-}
-
-//revive:disable:max-control-nesting
-func parseMultilineTests(text string) []TestCase {
-	var tests []TestCase
-
-	// This parser handles multiple let-binding formats:
-	// Format 1 (dockerFile list):
-	//   it "name" $
-	//     let dockerFile = [...]
-	//      in do
-	//           ruleCatches "DL3009" $ Text.unlines dockerFile
-	//
-	// Format 2 (line string):
-	//   it "name" $
-	//     let line = "RUN ..."
-	//     in do
-	//         ruleCatches "DL3019" line
-	//
-	// Format 3 (in do on same line as assertion):
-	//   it "name" $
-	//     let dockerFile = [...]
-	//      in do ruleCatches "DL3047" $ Text.unlines dockerFile
-
-	lines := strings.Split(text, "\n")
-	idx := 0
-
-	// Pattern to match: it "test name" $
-	itPattern := regexp.MustCompile(`it\s+"([^"]+)"\s+\$\s*$`)
-	// Pattern to match: let dockerFile = or let line =
-	letDockerFilePattern := regexp.MustCompile(`^\s*let\s+dockerFile\s*=`)
-	letLinePattern := regexp.MustCompile(`^\s*let\s+line\s*=\s*"((?:[^"\\]|\\.)*)"`)
-	// Pattern to match: in do (standalone)
-	inDoPattern := regexp.MustCompile(`^\s*in\s+do\s*$`)
-	// Pattern to match: in do ruleCatches... (inline)
-	inDoInlinePattern := regexp.MustCompile(`^\s*in\s+do\s+(onBuild)?(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+`)
-	// Pattern to match assertions: ruleCatches "DL3009" $ Text.unlines dockerFile
-	// or: ruleCatches "DL3019" line
-	assertionPattern := regexp.MustCompile(
-		`\s*(onBuild)?(ruleCatches|ruleCatchesNot)\s+"(DL\d+)"\s+(\$\s+Text\.unlines\s+dockerFile|line)`,
-	)
-
-	for idx < len(lines) {
-		line := lines[idx]
-
-		// Look for "it 'name' $" line
-		itMatch := itPattern.FindStringSubmatch(line)
-		if itMatch == nil {
-			idx++
-
-			continue
-		}
-
-		testName := itMatch[1]
-
-		// Check if next line has a let binding
-		if idx+1 >= len(lines) {
-			idx++
-
-			continue
-		}
-
-		nextLine := lines[idx+1]
-
-		// Check for "let line = ..." format
-		lineMatch := letLinePattern.FindStringSubmatch(nextLine)
-		if lineMatch != nil {
-			// Single line dockerfile
-			dockerfile := unescapeHaskellString(lineMatch[1])
-
-			// Find "in do" and parse assertions
-			foundInDo := false
-			inDoLineIndex := -1
-
-			for lineIndex := idx + 2; lineIndex < len(lines) && lineIndex < idx+20; lineIndex++ {
-				currentLine := lines[lineIndex]
-
-				// Look for "in do" pattern (standalone or inline)
-				if inDoPattern.MatchString(currentLine) {
-					foundInDo = true
-					inDoLineIndex = lineIndex
-
-					break
-				}
-
-				// Check for inline "in do ruleCatches..."
-				inlineMatch := inDoInlinePattern.FindStringSubmatch(currentLine)
-				if inlineMatch != nil {
-					foundInDo = true
-					inDoLineIndex = lineIndex
-
-					// Parse the inline assertion immediately
-					shouldFail := inlineMatch[2] == "ruleCatches"
-					ruleCode := inlineMatch[3]
-
-					tests = append(tests, TestCase{
-						Name:       testName,
-						RuleCode:   ruleCode,
-						Dockerfile: dockerfile,
-						ShouldFail: shouldFail,
-					})
-
-					// Continue parsing subsequent lines for more assertions
-					break
-				}
-			}
-
-			if foundInDo && inDoLineIndex >= 0 {
-				baseIndent := len(lines[inDoLineIndex]) - len(strings.TrimLeft(lines[inDoLineIndex], " "))
-				assertionCount := 0
-
-				for lineIndex := inDoLineIndex + 1; lineIndex < len(lines) && lineIndex < inDoLineIndex+20; lineIndex++ {
-					currentLine := lines[lineIndex]
-
-					if strings.TrimSpace(currentLine) == "" {
-						continue
-					}
-
-					currentIndent := len(currentLine) - len(strings.TrimLeft(currentLine, " "))
-					if currentIndent <= baseIndent {
-						idx = lineIndex - 1
-
-						break
-					}
-
-					assertMatch := assertionPattern.FindStringSubmatch(currentLine)
-					if assertMatch != nil {
-						assertionCount++
-						shouldFail := assertMatch[2] == "ruleCatches"
-						ruleCode := assertMatch[3]
-
-						name := testName
-						if assertionCount > 1 {
-							name = fmt.Sprintf("%s (%d)", testName, assertionCount)
-						}
-
-						tests = append(tests, TestCase{
-							Name:       name,
-							RuleCode:   ruleCode,
-							Dockerfile: dockerfile,
-							ShouldFail: shouldFail,
-						})
-					}
-				}
-			}
-
-			idx++
-
-			continue
-		}
-
-		// Check for "let dockerFile = [...]" format
-		if !letDockerFilePattern.MatchString(nextLine) {
-			idx++
-
-			continue
-		}
-
-		// Collect dockerfile lines from the let binding
-		var dockerfileLines []string
-
-		foundInDo := false
-		inDoLineIndex := -1
-
-		for scanIndex := idx + 1; scanIndex < len(lines) && scanIndex < idx+50; scanIndex++ {
-			currentLine := lines[scanIndex]
-
-			// Check for terminating patterns FIRST (before extracting quotes)
-			// to avoid including rule codes in Dockerfile content
-
-			// Look for "in do" pattern (standalone)
-			if inDoPattern.MatchString(currentLine) {
-				foundInDo = true
-				inDoLineIndex = scanIndex
-
-				break
-			}
-
-			// Check for inline "in do ruleCatches..."
-			inlineMatch := inDoInlinePattern.FindStringSubmatch(currentLine)
-			if inlineMatch != nil {
-				foundInDo = true
-				inDoLineIndex = scanIndex
-
-				break
-			}
-
-			// Also support the old format: in ruleCatches (without do-block)
-			endMatch := multilineEndPattern.FindStringSubmatch(currentLine)
-			if endMatch != nil {
-				shouldFail := endMatch[1] == "ruleCatches"
-				ruleCode := endMatch[2]
-
-				if len(dockerfileLines) > 0 {
-					tests = append(tests, TestCase{
-						Name:       testName,
-						RuleCode:   ruleCode,
-						Dockerfile: strings.Join(dockerfileLines, "\n"),
-						ShouldFail: shouldFail,
-					})
-				}
-
-				idx = scanIndex
-
-				break
-			}
-
-			// Extract dockerfile lines from quoted strings (only if not a terminating pattern)
-			if strings.Contains(currentLine, "\"") {
-				// Extract quoted strings, handling escaped quotes
-				quotedStrings := regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`).FindAllStringSubmatch(currentLine, -1)
-				for _, match := range quotedStrings {
-					if len(match) > 1 && match[1] != "" {
-						// Unescape Haskell string escape sequences
-						unescaped := unescapeHaskellString(match[1])
-						dockerfileLines = append(dockerfileLines, unescaped)
-					}
-				}
-			}
-		}
-
-		// If we found "in do", parse the assertions in the do-block
-		if foundInDo && len(dockerfileLines) > 0 {
-			dockerfile := strings.Join(dockerfileLines, "\n")
-
-			// Check if it's inline format: "in do ruleCatches..."
-			inlineMatch := inDoInlinePattern.FindStringSubmatch(lines[inDoLineIndex])
-			if inlineMatch != nil {
-				// Parse the inline assertion
-				shouldFail := inlineMatch[2] == "ruleCatches"
-				ruleCode := inlineMatch[3]
-
-				tests = append(tests, TestCase{
-					Name:       testName,
-					RuleCode:   ruleCode,
-					Dockerfile: dockerfile,
-					ShouldFail: shouldFail,
-				})
-
-				// Continue parsing subsequent lines for more assertions
-				baseIndent := len(lines[inDoLineIndex]) - len(strings.TrimLeft(lines[inDoLineIndex], " "))
-				assertionCount := 1
-
-				for lineIndex := inDoLineIndex + 1; lineIndex < len(lines) && lineIndex < inDoLineIndex+20; lineIndex++ {
-					currentLine := lines[lineIndex]
-
-					if strings.TrimSpace(currentLine) == "" {
-						continue
-					}
-
-					currentIndent := len(currentLine) - len(strings.TrimLeft(currentLine, " "))
-					if currentIndent <= baseIndent {
-						idx = lineIndex - 1
-
-						break
-					}
-
-					assertMatch := assertionPattern.FindStringSubmatch(currentLine)
-					if assertMatch != nil {
-						assertionCount++
-						shouldFail := assertMatch[2] == "ruleCatches"
-						ruleCode := assertMatch[3]
-
-						name := fmt.Sprintf("%s (%d)", testName, assertionCount)
-
-						tests = append(tests, TestCase{
-							Name:       name,
-							RuleCode:   ruleCode,
-							Dockerfile: dockerfile,
-							ShouldFail: shouldFail,
-						})
-					}
-				}
-			} else {
-				// Standalone "in do" - parse assertions from next line
-				baseIndent := len(lines[inDoLineIndex]) - len(strings.TrimLeft(lines[inDoLineIndex], " "))
-				assertionCount := 0
-
-				for lineIndex := inDoLineIndex + 1; lineIndex < len(lines) && lineIndex < inDoLineIndex+20; lineIndex++ {
-					currentLine := lines[lineIndex]
-
-					// Empty lines are ok
-					if strings.TrimSpace(currentLine) == "" {
-						continue
-					}
-
-					// Check if we've exited the do block (decreased indentation to base level or less)
-					currentIndent := len(currentLine) - len(strings.TrimLeft(currentLine, " "))
-					if currentIndent <= baseIndent {
-						idx = lineIndex - 1
-
-						break
-					}
-
-					// Look for assertion pattern
-					assertMatch := assertionPattern.FindStringSubmatch(currentLine)
-					if assertMatch != nil {
-						assertionCount++
-						shouldFail := assertMatch[2] == "ruleCatches"
-						ruleCode := assertMatch[3]
-
-						// Create unique test name if multiple assertions
-						name := testName
-						if assertionCount > 1 {
-							name = fmt.Sprintf("%s (%d)", testName, assertionCount)
-						}
-
-						tests = append(tests, TestCase{
-							Name:       name,
-							RuleCode:   ruleCode,
-							Dockerfile: dockerfile,
-							ShouldFail: shouldFail,
-						})
-					}
-				}
-			}
-		}
-
-		idx++
+	fmt.Fprint(report, "# Hadolint Test Generation\n\n")
+	fmt.Fprintf(report, "Total test files parsed: %d\n", len(files))
+	fmt.Fprintf(report, "Total assertions read: %d\n", assertions)
+	fmt.Fprintf(report, "Total test cases extracted: %d\n", totalTests)
+	fmt.Fprintf(report, "Rules with tests: %d\n\n", len(allTests))
+
+	for _, reason := range slices.Sorted(maps.Keys(left)) {
+		fmt.Fprintf(report, "Not ported: %d case(s) of %s\n", left[reason], reason)
 	}
 
-	return tests
+	generated := 0
+
+	for _, ruleCode := range slices.Sorted(maps.Keys(allTests)) {
+		if err := generateTestFile(ruleCode, allTests[ruleCode]); err != nil {
+			return fmt.Errorf("%s: %w", ruleCode, err)
+		}
+
+		fmt.Fprintf(report, "Generated tests for %s (%d cases)\n", ruleCode, len(allTests[ruleCode]))
+
+		generated++
+	}
+
+	fmt.Fprintf(report, "\nGenerated test files: %d\n", generated)
+
+	// Every assertion read is in a test file or named above: the sum says
+	// none fell between.
+	named := 0
+	for _, count := range left {
+		named += count
+	}
+
+	if totalTests+named != assertions {
+		return fmt.Errorf(
+			"%w: %d assertions read, %d generated and %d named as not ported",
+			ErrTestGeneration, assertions, totalTests, named,
+		)
+	}
+
+	return nil
 }
 
 func escapeBackticks(s string) string {
@@ -880,9 +287,52 @@ func goLabelType(haskellType string) string {
 	return haskellType // fallback
 }
 
-func generateTestFile(ruleCode string, cases []TestCase, config *HadolintConfig) error {
+// nameCases gives each case of a rule its own name: the `it` it comes from, with
+// what tells it from the block's other cases.
+func nameCases(cases []TestCase) {
+	seen := map[string]int{}
+
+	for i := range cases {
+		name := cases[i].Name
+		if cases[i].OnBuild {
+			name += " (ONBUILD)"
+		}
+
+		seen[name]++
+		if count := seen[name]; count > 1 {
+			name += fmt.Sprintf(" [%d]", count)
+		}
+
+		cases[i].Name = name
+	}
+}
+
+// sameConfig reports whether every case runs under one configuration: the
+// spec's own, or none.
+func sameConfig(cases []TestCase) bool {
+	for _, testCase := range cases {
+		if testCase.Config != cases[0].Config {
+			return false
+		}
+	}
+
+	return true
+}
+
+func generateTestFile(ruleCode string, cases []TestCase) error {
+	if len(cases) == 0 {
+		return fmt.Errorf("%w: no case to write", ErrTestGeneration)
+	}
+
+	if !sameConfig(cases) {
+		return fmt.Errorf(
+			"%w: cases under different configurations, which the template does not write",
+			ErrTestGeneration,
+		)
+	}
+
 	// Sort test cases by name for consistent output
-	slices.SortFunc(cases, func(left, right TestCase) int {
+	slices.SortStableFunc(cases, func(left, right TestCase) int {
 		return strings.Compare(left.Name, right.Name)
 	})
 
@@ -924,9 +374,11 @@ func Test{{.RuleCode}}(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := ` + "`" + `{{.Dockerfile | escapeBackticks}}` + "`" + `
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			violations := testutils.{{if .OnBuild}}LintDockerfileOnBuild{{else}}LintDockerfile{{end}}(dockerfile, allRules)
 {{if .ShouldFail}}
-			testutils.AssertContainsViolation(t, violations, "{{.RuleCode}}"){{else}}
+			testutils.AssertContainsViolation(t, violations, "{{.RuleCode}}"){{else if and .Exactly (gt .Count 0)}}
+			testutils.AssertViolationCount(t, violations, "{{.RuleCode}}", {{.Count}}){{if .OnLines}}
+			testutils.AssertOnLines(t, violations){{end}}{{else}}
 			testutils.AssertNoViolation(t, violations, "{{.RuleCode}}"){{end}}
 		},
 	)
@@ -958,7 +410,7 @@ func Test{{.RuleCode}}(t *testing.T) {
 	data := RuleTests{
 		RuleCode:  ruleCode,
 		TestCases: cases,
-		Config:    config,
+		Config:    cases[0].Config,
 	}
 
 	err = tpl.Execute(outputFile, data)

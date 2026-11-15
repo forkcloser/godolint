@@ -33,12 +33,36 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
+		"does not warn on --version with = (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler --version='2.0.1'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
 		"does not warn on --version without =",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN gem install bundler --version '2.0.1'`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"does not warn on --version without = (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler --version '2.0.1'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3028")
 		},
@@ -57,12 +81,36 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
+		"does not warn on -v (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler -v '2.0.1'`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
 		"does not warn when using extra flags",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN gem install bundler:2.0.1 --use-system-libraries true`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"does not warn when using extra flags (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:2.0.1 --use-system-libraries true`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3028")
 		},
@@ -81,12 +129,36 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
+		"does not warn when using extra flags with double dashes (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:2.0.1 -- --use-system-libraries true`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
 		"does not warn when using extra flags with equal sign",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN gem install bundler:2.0.1 --use-system-libraries=true`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"does not warn when using extra flags with equal sign (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:2.0.1 --use-system-libraries=true`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3028")
 		},
@@ -105,6 +177,18 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
+		"does not warn when using extra flags with equal sign and double dashes (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:2.0.1 -- --use-system-libraries=true`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
 		"multi",
 		func(t *testing.T) {
 			t.Parallel()
@@ -117,23 +201,36 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
-		"multi (2)",
+		"multi (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN gem i bunlder:1 nokogirii:1`
-			violations := testutils.LintDockerfile(dockerfile, allRules)
+			dockerfile := `RUN gem i bunlder:1 nokogiri`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3028", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"multi (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem i bunlder:1 nokogiri:1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3028")
 		},
 	)
 
 	t.Run(
-		"pinned",
+		"multi [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN gem install bundler:1`
+			dockerfile := `RUN gem i bunlder:1 nokogirii:1`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3028")
@@ -153,14 +250,38 @@ func TestDL3028(t *testing.T) {
 	)
 
 	t.Run(
-		"unpinned",
+		"pinned (ONBUILD)",
 		func(t *testing.T) {
 			t.Parallel()
 
-			dockerfile := `RUN gem install bundler`
+			dockerfile := `RUN gem i bundler:1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"pinned (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:1`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"pinned [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler:1`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
-			testutils.AssertContainsViolation(t, violations, "DL3028")
+			testutils.AssertNoViolation(t, violations, "DL3028")
 		},
 	)
 
@@ -170,6 +291,44 @@ func TestDL3028(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `RUN gem i bundler`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3028")
+		},
+	)
+
+	t.Run(
+		"unpinned (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem i bundler`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3028", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"unpinned (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3028", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"unpinned [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN gem install bundler`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertContainsViolation(t, violations, "DL3028")

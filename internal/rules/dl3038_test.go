@@ -33,7 +33,33 @@ func TestDL3038(t *testing.T) {
 	)
 
 	t.Run(
-		"not ok without dnf non-interactive flag (2)",
+		"not ok without dnf non-interactive flag (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install httpd-2.4.24 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3038", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok without dnf non-interactive flag (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install httpd-2.4.24 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3038", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok without dnf non-interactive flag [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -57,7 +83,43 @@ func TestDL3038(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with dnf non-interactive flag (2)",
+		"ok with dnf non-interactive flag (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf install -y httpd-2.4.24 && dnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3038")
+		},
+	)
+
+	t.Run(
+		"ok with dnf non-interactive flag (ONBUILD) [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN microdnf install -y httpd-2.4.24 && microdnf clean all`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3038")
+		},
+	)
+
+	t.Run(
+		"ok with dnf non-interactive flag (ONBUILD) [3]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN notdnf install httpd`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3038")
+		},
+	)
+
+	t.Run(
+		"ok with dnf non-interactive flag [2]",
 		func(t *testing.T) {
 			t.Parallel()
 
@@ -69,7 +131,7 @@ func TestDL3038(t *testing.T) {
 	)
 
 	t.Run(
-		"ok with dnf non-interactive flag (3)",
+		"ok with dnf non-interactive flag [3]",
 		func(t *testing.T) {
 			t.Parallel()
 

@@ -82,7 +82,7 @@ COPY --from=0 foo .`
 	)
 
 	t.Run(
-		"don't warn on valid stage count as --from=<count>",
+		"don't warn on valid stage count as --from=<count> [2]",
 		func(t *testing.T) {
 			t.Parallel()
 

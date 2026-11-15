@@ -32,4 +32,18 @@ RUN apt install python`
 			testutils.AssertContainsViolation(t, violations, "DL3027")
 		},
 	)
+
+	t.Run(
+		"apt (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM ubuntu
+RUN apt install python`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3027", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
 }

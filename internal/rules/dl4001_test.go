@@ -65,6 +65,21 @@ RUN curl localhost`
 	)
 
 	t.Run(
+		"only warns on the relevant RUN instruction",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM node as foo
+RUN wget my.xyz
+RUN curl my.xyz
+RUN echo hello`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL4001", 1)
+		},
+	)
+
+	t.Run(
 		"warns when using both wget and curl",
 		func(t *testing.T) {
 			t.Parallel()

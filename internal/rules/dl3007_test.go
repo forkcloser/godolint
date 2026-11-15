@@ -21,6 +21,18 @@ func TestDL3007(t *testing.T) {
 	}
 
 	t.Run(
+		"explicit SHA",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM hub.docker.io/debian@sha256:7959ed6f7e35f8b1aaa06d1d8259d4ee25aa85a086d5c125480c333183f9deeb`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3007")
+		},
+	)
+
+	t.Run(
 		"explicit latest",
 		func(t *testing.T) {
 			t.Parallel()
@@ -50,6 +62,18 @@ func TestDL3007(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `FROM debian:jessie`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3007")
+		},
+	)
+
+	t.Run(
+		"explicit tagged and SHA",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM hub.docker.io/debian:latest@sha256:7959ed6f7e35f8b1aaa06d1d8259d4ee25aa85a086d5c125480c333183f9deeb`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3007")
