@@ -52,8 +52,7 @@ type HadolintConfig struct {
 
 // The issues of the cases godolint does not pass yet.
 const (
-	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
-	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
+	issueStages = "https://github.com/forkcloser/godolint/issues/126"
 )
 
 // failing names the cases of hadolint that godolint does not pass, each with
@@ -77,7 +76,6 @@ var failing = map[string]map[string]string{
 		"warn twice: two stages, no labels":                                         issueStages,
 		"warn twice: two stages, wrong labels only":                                 issueStages,
 	},
-	"DL3060": {"ok when omitting yarn cache clean in stage that is not reused later": issueYarnStage},
 }
 
 // ruleCodePattern is a rule's code.
