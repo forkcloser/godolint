@@ -26,6 +26,7 @@ tables below; commits to hadolint's own build, CI, docs and Haskell plumbing are
 | [`f142eb1`](https://github.com/hadolint/hadolint/commit/f142eb1) | `internal/rules/dl3041_impl.go`, `shell.DropFlagArg` | DL3041: the value of a dnf option (`--releasever 9`) is not a package; `*` is a version character |
 | [`cf64a44`](https://github.com/hadolint/hadolint/commit/cf64a44) | `shell.CmdHasAllArgs`, DL3009, DL3032, DL3040, DL3060 | A cleanup is the command with every one of its arguments, not any of them: `yum clean` is not `yum clean all` |
 | [`23779d4`](https://github.com/hadolint/hadolint/commit/23779d4) | `internal/rules/dl3068_impl.go` | DL3068: pecl packages installed at a version |
+| [`9d8ccb7`](https://github.com/hadolint/hadolint/commit/9d8ccb7) | `internal/rules/dl4006_impl.go` | DL4006: a stage built `FROM` a named stage inherits the pipefail its `SHELL` set, until a `SHELL` of its own; an image behind a registry is not a stage |
 
 ## Not ported
 
