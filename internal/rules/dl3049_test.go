@@ -27,6 +27,20 @@ func TestDL3049(t *testing.T) {
 	}
 
 	t.Run(
+		"don't warn: two stages, inheritance",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage as base
+LABEL foo="bar"
+FROM base`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3049")
+		},
+	)
+
+	t.Run(
 		"don't warn: two stages, inheritance, label defined in second stage",
 		func(t *testing.T) {
 			t.Parallel()
@@ -52,6 +66,58 @@ COPY --from=base /bar /baz`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3049")
+		},
+	)
+
+	t.Run(
+		"not ok: single stage, no label",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3049")
+		},
+	)
+
+	t.Run(
+		"not ok: single stage, no label (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+			testutils.AssertOnLines(t, violations)
+		},
+	)
+
+	t.Run(
+		"not ok: single stage, wrong label",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage
+LABEL bar="baz"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3049")
+		},
+	)
+
+	t.Run(
+		"not ok: single stage, wrong label (ONBUILD)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage
+LABEL bar="baz"`
+			violations := testutils.LintDockerfileOnBuild(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+			testutils.AssertOnLines(t, violations)
 		},
 	)
 
@@ -98,6 +164,22 @@ FROM base`
 	)
 
 	t.Run(
+		"warn once: multiple results, inheritance, label in one result [2]",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage as base
+FROM base
+
+FROM base
+LABEL foo="bar"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+		},
+	)
+
+	t.Run(
 		"warn once: multiple results, no inheritance, label in one result",
 		func(t *testing.T) {
 			t.Parallel()
@@ -126,6 +208,90 @@ FROM newimage`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+		},
+	)
+
+	t.Run(
+		"warn once: two stages, label present in second only",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage
+FROM newimage
+LABEL foo="bar"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+		},
+	)
+
+	t.Run(
+		"warn once: two stages, no inheritance, label in last stage, no connection",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage as base
+FROM anotherimage
+LABEL foo="bar"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+		},
+	)
+
+	t.Run(
+		"warn once: two stages, no inheritance, wrong label in one",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage
+LABEL baz="bar"
+FROM newimage
+LABEL foo="bar"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 1)
+		},
+	)
+
+	t.Run(
+		"warn twice: two stages, inheritance, no labels",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM baseimage as base
+FROM base`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 2)
+		},
+	)
+
+	t.Run(
+		"warn twice: two stages, no labels",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM stage1
+FROM stage2`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 2)
+		},
+	)
+
+	t.Run(
+		"warn twice: two stages, wrong labels only",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM stage1
+LABEL bar="baz"
+FROM stage2
+LABEL buzz="fuzz"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3049", 2)
 		},
 	)
 }

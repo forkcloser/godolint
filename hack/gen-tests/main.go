@@ -50,33 +50,14 @@ type HadolintConfig struct {
 	AllowedRegistries []string
 }
 
-// The issues of the cases godolint does not pass yet.
-const (
-	issueStages = "https://github.com/forkcloser/godolint/issues/126"
-)
-
-// failing names the cases of hadolint that godolint does not pass, each with
-// the issue that says why: a case is ported, or it is here. An entry goes
-// when its issue is fixed, and the generator stops on an entry that names no
-// case, so none outlives its reason.
+// failing names the cases of hadolint that godolint does not pass, by rule
+// and by name, each with the issue that says why: a case is ported, or it
+// is here. An entry goes when its issue is fixed, and the generator stops on
+// an entry that names no case, so none outlives its reason. It is empty when
+// godolint passes every case the generator can write.
 //
-//nolint:gochecknoglobals // a constant table
-var failing = map[string]map[string]string{
-	"DL3049": {
-		"don't warn: two stages, inheritance":                                       issueStages,
-		"not ok: single stage, no label":                                            issueStages,
-		"not ok: single stage, no label (ONBUILD)":                                  issueStages,
-		"not ok: single stage, wrong label":                                         issueStages,
-		"not ok: single stage, wrong label (ONBUILD)":                               issueStages,
-		"warn once: multiple results, inheritance, label in one result [2]":         issueStages,
-		"warn once: two stages, label present in second only":                       issueStages,
-		"warn once: two stages, no inheritance, label in last stage, no connection": issueStages,
-		"warn once: two stages, no inheritance, wrong label in one":                 issueStages,
-		"warn twice: two stages, inheritance, no labels":                            issueStages,
-		"warn twice: two stages, no labels":                                         issueStages,
-		"warn twice: two stages, wrong labels only":                                 issueStages,
-	},
-}
+//nolint:gochecknoglobals // a table, written to by its test alone
+var failing = map[string]map[string]string{}
 
 // ruleCodePattern is a rule's code.
 var ruleCodePattern = regexp.MustCompile(`^DL\d{4}$`)
