@@ -3,6 +3,7 @@ package rules_test
 import (
 	"testing"
 
+	"github.com/forkcloser/godolint/internal/config"
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/internal/testutils"
@@ -16,19 +17,296 @@ import (
 func TestDL3026(t *testing.T) {
 	t.Parallel()
 
-	allRules := []rule.Rule{
-		rules.DL3026(),
-	}
+	t.Run(
+		"allows all forms of docker.io",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"docker.io"},
+				}),
+			}
+
+			dockerfile := `FROM ubuntu:18.04 AS builder1
+FROM zemanlx/ubuntu:18.04 AS builder2
+FROM docker.io/zemanlx/ubuntu:18.04 AS builder3`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"allows using previous stages",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"random.com"},
+				}),
+			}
+
+			dockerfile := `FROM random.com/foo AS builder1
+FROM builder1 AS builder2`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"distrust all forms of docker.io if trusted registries are given",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `FROM ubuntu:18.04 AS builder1
+FROM zemanlx/ubuntu:18.04 AS builder2
+FROM docker.io/zemanlx/ubuntu:18.04 AS builder3`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertViolationCount(t, violations, "DL3026", 3)
+		},
+	)
+
+	t.Run(
+		"does not warn on * registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"*"},
+				}),
+			}
+
+			dockerfile := `FROM ubuntu:18.04 AS builder1
+FROM zemanlx/ubuntu:18.04 AS builder2
+FROM docker.io/zemanlx/ubuntu:18.04 AS builder3`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"does not warn on allowed registries",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"x.com", "random.com"},
+				}),
+			}
+
+			dockerfile := `FROM random.com/debian`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"does not warn on allowed wildcard registries",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"x.com", "*.random.com"},
+				}),
+			}
+
+			dockerfile := `FROM foo.random.com/debian`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"does not warn on copy from untrusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `COPY --from=trusted.com/repo/image:tag /foo /bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
 
 	t.Run(
 		"does not warn on empty allowed registries",
 		func(t *testing.T) {
 			t.Parallel()
 
+			allRules := []rule.Rule{
+				rules.DL3026(),
+			}
+
 			dockerfile := `FROM random.com/debian`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
 			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"does warn on copy from untrusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `COPY --from=untrusted.com/repo/image:tag /foo /bar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"doesn't warn on scratch image",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"x.com", "random.com"},
+				}),
+			}
+
+			dockerfile := `FROM scratch`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"don't warn on run with bind mount from trusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `RUN --mount=type=bind,from=trusted.com/repo/image:tag,target=/foo foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"don't warn on run with cache mount from trusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `RUN --mount=type=cache,from=trusted.com/repo/image:tag,target=/foo foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"warn on non-allowed registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"docker.io"},
+				}),
+			}
+
+			dockerfile := `FROM random.com/debian`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"warn on non-allowed wildcard registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"*.random.com"},
+				}),
+			}
+
+			dockerfile := `FROM x.com/debian`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"warn on run with bind mount from untrusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `RUN --mount=type=bind,from=untrusted.com/repo/image:tag,target=/foo foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3026")
+		},
+	)
+
+	t.Run(
+		"warn on run with cache mount from untrusted registry",
+		func(t *testing.T) {
+			t.Parallel()
+
+			allRules := []rule.Rule{
+				rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"trusted.com"},
+				}),
+			}
+
+			dockerfile := `RUN --mount=type=cache,from=untrusted.com/repo/image:tag,target=/foo foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3026")
 		},
 	)
 }

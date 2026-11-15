@@ -27,8 +27,8 @@ func dl3026Lines(dockerfile string, registries ...string) []int {
 	return lines
 }
 
-// TestDL3026Spec holds hadolint's cases, which the generator does not port
-// (each sets its own configuration), with the lines the failures fall on.
+// TestDL3026Spec holds hadolint's cases with the lines the failures fall on,
+// which the generated tests do not look at.
 func TestDL3026Spec(t *testing.T) {
 	t.Parallel()
 
