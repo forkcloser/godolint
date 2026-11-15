@@ -11,6 +11,6 @@ pins:
     url: https://github.com/hadolint/hadolint/archive/${version}.tar.gz
     verify: download
     digest:
-      version: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
-      source: 7a4dfb1df7874032a8161ca8a508a1336b4b4eefbbd3c4810706701275a2f526
-      sha256: a202e925d7fb5211ac23cc418d8d9a0509962fcedd04dc27e3ff05840d2ec0fc
+      version: v2.15.1
+      source: 3f0cb8c462efa20aaa8253e13c35eeb37684938649fac5ce192d32cb003a1221
+      sha256: 52fbc1c8a4558f89e3b0c9d905e62016cf58ae842f9fa3ac93c56bb45f8c9ddb
