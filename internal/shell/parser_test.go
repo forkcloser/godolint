@@ -1,6 +1,7 @@
 package shell_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/forkcloser/godolint/internal/shell"
@@ -289,6 +290,84 @@ func TestCountCommands(t *testing.T) {
 			count := shell.CountCommands(ps)
 			if count != tt.expected {
 				t.Errorf("expected %d commands, got %d", tt.expected, count)
+			}
+		})
+	}
+}
+
+// TestParseShellReadsAWordAsHadolintDoes: the text of a command's name and
+// of each argument, which the rules look into: quotes gone, escapes read,
+// an expansion as its name and what it holds, a brace expansion nothing.
+// Each row is hadolint's simplify (Shell.hs) over ShellCheck's parse, but
+// the braces around two dots that make no sequence, which stay as the
+// shell leaves them.
+func TestParseShellReadsAWordAsHadolintDoes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name, script string
+		words        []string
+	}{
+		{"plain", `cmd one two`, []string{"cmd", "one", "two"}},
+		{"quotes", `cmd "a b" 'c d' e"f"'g'`, []string{"cmd", "a b", "c d", "efg"}},
+		{"a backslash outside quotes", `\cmd a\ b pkg-1.2\* /var/cache/yum/\* \\x`, []string{"cmd", "a b", "pkg-1.2*", "/var/cache/yum/*", `\x`}},
+		{"a backslash in double quotes", `cmd "a\"b" "c\$d" "e\\f" "g\nh" "i\'j"`, []string{"cmd", `a"b`, "c$d", `e\f`, `g\nh`, `i\'j`}},
+		{"a backslash in single quotes", `cmd 'a\b' 'c\'`, []string{"cmd", `a\b`, `c\`}},
+		{"a continued line", "cmd one\\\ntwo", []string{"cmd", "onetwo"}},
+		{"a variable", `cmd $A ${B} "$C" x${D}y`, []string{"cmd", "${A}", "${B}", "${C}", "x${D}y"}},
+		{
+			"a variable with an operator",
+			`cmd ${A:-b} "pkg${V:+==$V}" ${A:=c d} ${A:?} ${A-"x y"}`,
+			[]string{"cmd", "${A:-b}", "pkg${V:+==${V}}", "${A:=c d}", "${A:?}", "${A-x y}"},
+		},
+		{"other forms of a variable", `cmd ${#A} ${A[0]} ${A/x/y} ${A:1:2}`, []string{"cmd", "${#A}", "${A[0]}", "${A/x/y}", "${A:1:2}"}},
+		{
+			"a command substitution",
+			`cmd $(cat /tmp/list) "$(id -u)" v$(echo ${V})`,
+			[]string{"cmd", "${cat/tmp/list}", "${id-u}", "v${echo${V}}"},
+		},
+		{"a substitution of more than a command", `cmd $(a | b) $(a && b) $(a; b c)`, []string{"cmd", "${}", "${}", "${abc}"}},
+		{"backquotes and arithmetic", "cmd `id -u` $((1 + 2))", []string{"cmd", "${VAR}", "${VAR}"}},
+		{"a brace expansion", `cmd pkg-{a,b}-1.0 /lists/{a,b} {1..3} x{a,{b,c}}y`, []string{"cmd", "pkg--1.0", "/lists/", "", "xy"}},
+		{"braces that expand nothing", `cmd {a} {} a{b}c ${A}{B}`, []string{"cmd", "{a}", "{}", "a{b}c", "${A}{B}"}},
+		{"a glob", `cmd /a/* b? [c]d`, []string{"cmd", "/a/*", "b?", "[c]d"}},
+		{"a process substitution", `cmd <(a b) x`, []string{"cmd", "", "x"}},
+		{"a string to translate", `cmd $"a b" x`, []string{"cmd", "", "x"}},
+		{"the old arithmetic", `cmd $[1+2] x`, []string{"cmd", "", "x"}},
+		{"a substitution negated or in the background", `cmd $(! a b) $(a b &) $(a b)`, []string{"cmd", "${}", "${}", "${ab}"}},
+		{
+			"two dots that make no sequence",
+			`cmd {foo..bar} x{a..}y {..} {a.b} {a..3} {$A..$B} {1..$N} {"a..b"} {1..3} {a..c}`,
+			[]string{"cmd", "{foo..bar}", "x{a..}y", "{..}", "{a.b}", "{a..3}", "{${A}..${B}}", "{1..${N}}", "{a..b}", "", ""},
+		},
+		{
+			"a brace a backslash escapes",
+			`cmd \{1..3\} \{1..3} {1..3\} \{a..b\} \{a..b} \{a,b\} \{a,b}`,
+			[]string{"cmd", "{1..3}", "{1..3}", "{1..3}", "{a..b}", "{a..b}", "{a,b}", "{a,b}"},
+		},
+		{
+			"a backslash in the word of a variable",
+			"cmd ${A:-a\\b} ${A:-a\\}b} ${A:-a\\$b} \"${A:-a\\\"b}\"",
+			[]string{"cmd", `${A:-a\b}`, "${A:-a}b}", "${A:-a$b}", `${A:-a"b}`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			parsed, err := shell.ParseShell(tc.script)
+			if err != nil || len(parsed.PresentCommands) == 0 {
+				t.Fatalf("ParseShell(%q) = %v, %v", tc.script, parsed, err)
+			}
+
+			first := parsed.PresentCommands[0]
+
+			got := []string{first.Name}
+			for _, arg := range first.Arguments {
+				got = append(got, arg.Arg)
+			}
+
+			if !slices.Equal(got, tc.words) {
+				t.Errorf("%q reads as\n%q\nwant\n%q", tc.script, got, tc.words)
 			}
 		})
 	}
