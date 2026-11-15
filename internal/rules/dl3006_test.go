@@ -21,6 +21,47 @@ func TestDL3006(t *testing.T) {
 	}
 
 	t.Run(
+		"a quoted variable is not an error",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM "${IMAGE}"`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
+		"a variable inside the name of a previous stage is ok",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:12 AS base-amd64
+FROM debian:12 AS base-arm64
+FROM base-${TARGETARCH} AS final
+FROM alpine:3 AS img1
+FROM img$src AS other`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
+		"a variable inside the name of an external image is not ok",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:12 AS base-amd64
+FROM myrepo/app-${VARIANT}`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3006")
+		},
+	)
+
+	t.Run(
 		"local aliases are OK to be untagged",
 		func(t *testing.T) {
 			t.Parallel()

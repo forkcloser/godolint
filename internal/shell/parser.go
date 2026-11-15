@@ -253,6 +253,20 @@ func CmdHasAllArgs(expectedName string, expectedArgs []string, cmd Command) bool
 	return true
 }
 
+// IsRecursiveRemoval reports whether cmd is an rm that recursively removes
+// one of paths, however its flags are written (-rf, -fr, -r -f, -R,
+// --recursive). A path is matched as written: a glob is not expanded.
+// Ported from Hadolint.Shell.isRecursiveRemoval.
+func IsRecursiveRemoval(paths []string, cmd Command) bool {
+	if cmd.Name != "rm" || !HasAnyFlag([]string{"r", "R", "recursive"}, cmd) {
+		return false
+	}
+
+	return slices.ContainsFunc(GetArgsNoFlags(cmd), func(arg string) bool {
+		return slices.Contains(paths, arg)
+	})
+}
+
 // Basename is the last path segment of a shell's name, so /usr/bin/bash,
 // /bin/bash and bash are one shell.
 // Ported from Hadolint.Shell.shellBasename.

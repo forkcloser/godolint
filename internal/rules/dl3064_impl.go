@@ -39,14 +39,23 @@ func checkDL3064(instruction syntax.Instruction) bool {
 }
 
 // sensitiveName is hadolint's test: the name upper-cased is a known sensitive
-// variable, or the name lower-cased contains a suspicious substring.
+// variable, or the name lower-cased contains a suspicious substring. A name
+// ending in _FILE is neither: it holds the path to a secret
+// (POSTGRES_PASSWORD_FILE), not the secret.
 func sensitiveName(name string) bool {
-	if knownSensitiveName(strings.ToUpper(name)) {
+	upper := strings.ToUpper(name)
+	if strings.HasSuffix(upper, "_FILE") {
+		return false
+	}
+
+	if knownSensitiveName(upper) {
 		return true
 	}
 
 	lower := strings.ToLower(name)
-	for _, word := range []string{"api_key", "client_key", "password", "private", "secret", "token", "username"} {
+	for _, word := range []string{
+		"api_key", "client_key", "password", "private_key", "privatekey", "secret", "token", "username",
+	} {
 		if strings.Contains(lower, word) {
 			return true
 		}
@@ -64,15 +73,14 @@ func knownSensitiveName(upper string) bool {
 		"BITTREX_API_KEY", "BITTREX_API_SECRET",
 		"CF_PASSWORD", "CF_USERNAME", "CIRCLE_TOKEN", "CI_DEPLOY_PASSWORD", "CI_DEPLOY_USER",
 		"DOCKERHUB_PASSWORD", "DOCKER_EMAIL", "DOCKER_PASSWORD", "DOCKER_USERNAME",
-		"FACEBOOK_ACCESS_TOKEN", "FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET",
+		"FACEBOOK_ACCESS_TOKEN", "FACEBOOK_APP_SECRET",
 		"FIREBASE_API_TOKEN", "FIREBASE_TOKEN", "FOSSA_API_KEY",
 		"GH_ENTERPRISE_TOKEN", "GH_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GITHUB_TOKEN",
 		"HEROKU_API_KEY", "HEROKU_API_USER",
 		"NPM_AUTH_TOKEN", "NPM_TOKEN",
-		"OKTA_AUTHN_GROUPID", "OKTA_CLIENT_ORGURL", "OKTA_CLIENT_TOKEN", "OKTA_OAUTH2_CLIENTID", "OKTA_OAUTH2_CLIENTSECRET",
+		"OKTA_CLIENT_TOKEN", "OKTA_OAUTH2_CLIENTSECRET",
 		"OPENAI_API_KEY", "OS_PASSWORD", "OS_USERNAME", "POSTGRES_PASSWORD",
-		"SLACK_TOKEN", "STRIPE_API_KEY", "STRIPE_DEVICE_NAME",
-		"TRAVIS_OS_NAME", "TRAVIS_SECURE_ENV_VARS", "TRAVIS_SUDO",
+		"SLACK_TOKEN", "STRIPE_API_KEY",
 		"VAULT_CLIENT_KEY", "VAULT_TOKEN":
 		return true
 	default:

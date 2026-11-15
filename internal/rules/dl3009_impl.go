@@ -156,7 +156,9 @@ func forgotToCleanup(parsed *shell.ParsedShell) bool {
 		}
 
 		// Check for cleanup
-		if shell.CmdHasAllArgs("rm", []string{recursiveForceFlag, "/var/lib/apt/lists/*"}, cmd) {
+		if shell.IsRecursiveRemoval(
+			[]string{"/var/lib/apt/lists", "/var/lib/apt/lists/", "/var/lib/apt/lists/*"}, cmd,
+		) {
 			hasCleanup = true
 		}
 	}

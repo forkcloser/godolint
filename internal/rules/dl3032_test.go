@@ -57,6 +57,54 @@ func TestDL3032(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with any form of recursive removal of the yum cache",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -fr /var/cache/yum/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the yum cache (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm -r -f /var/cache/yum`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the yum cache (3)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm --recursive /var/cache/yum/`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the yum cache (4)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN yum install -y bash && rm /var/cache/yum/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3032")
+		},
+	)
+
+	t.Run(
 		"ok with rm -rf /var/cache/yum/*",
 		func(t *testing.T) {
 			t.Parallel()

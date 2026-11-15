@@ -7,10 +7,10 @@
 pins:
   - name: hadolint
     renovate: github-tags hadolint/hadolint
-    version: 8ae25c05945f030b1ad520f1802e4143e7d0055d
+    version: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
     url: https://github.com/hadolint/hadolint/archive/${version}.tar.gz
     verify: download
     digest:
-      version: 8ae25c05945f030b1ad520f1802e4143e7d0055d
-      source: 1081ae1e3560f277691b8b3a5ee7452a6ced79a5716c5610607daf210a09b773
-      sha256: 6bb6e61465895fe7f5642af5c4ea1537f71ac6bd5300b86b43c8591677be4abd
+      version: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
+      source: 7a4dfb1df7874032a8161ca8a508a1336b4b4eefbbd3c4810706701275a2f526
+      sha256: a202e925d7fb5211ac23cc418d8d9a0509962fcedd04dc27e3ff05840d2ec0fc

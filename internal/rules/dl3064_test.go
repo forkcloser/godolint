@@ -21,6 +21,20 @@ func TestDL3064(t *testing.T) {
 	}
 
 	t.Run(
+		"not ok: ARG with a private key",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `ARG SSH_PRIVATE_KEY
+FROM debian:bullseye
+RUN foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3064")
+		},
+	)
+
+	t.Run(
 		"not ok: ARG with sensitive data",
 		func(t *testing.T) {
 			t.Parallel()
@@ -41,6 +55,20 @@ RUN foobar`
 
 			dockerfile := `ARG openai_api_key
 FROM debian:bullseye
+RUN foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3064")
+		},
+	)
+
+	t.Run(
+		"not ok: ENV with a sensitive name among other pairs",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM debian:bullseye
+ENV GOPRIVATE=github.com/example/* GITHUB_TOKEN=abcdef
 RUN foobar`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 
@@ -77,12 +105,43 @@ RUN foobar`
 	)
 
 	t.Run(
+		"ok: ARG and ENV referencing a secret file",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM postgres:17
+ARG POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+ENV AWS_WEB_IDENTITY_TOKEN_FILE=/var/run/secrets/token
+RUN foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3064")
+		},
+	)
+
+	t.Run(
 		"ok: ARG no sensitive data, no ENV",
 		func(t *testing.T) {
 			t.Parallel()
 
 			dockerfile := `ARG foobar
 FROM debian:bullseye
+RUN foobar`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3064")
+		},
+	)
+
+	t.Run(
+		"ok: ENV with names that only resemble sensitive data",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `FROM golang:1.24
+ENV GOPRIVATE=github.com/example/*
+ENV TRAVIS_OS_NAME=linux TRAVIS_SUDO=false
+ENV FACEBOOK_APP_ID=1234567890
 RUN foobar`
 			violations := testutils.LintDockerfile(dockerfile, allRules)
 

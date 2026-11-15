@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -9,9 +10,39 @@ import (
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
-// dl4006State tracks whether pipefail is set.
+// dl4006State tracks whether pipes are safe in the stage being processed, and
+// the same for every named stage so far, so that a stage built on one of them
+// inherits its SHELL.
 type dl4006State struct {
-	pipefailSet bool
+	current     string          // alias of the stage being processed, empty when it has none
+	pipefailSet bool            // whether the current stage's shell fails a pipe
+	stages      map[string]bool // pipefailSet as each named stage left it
+}
+
+// setPipefail records value for the current stage, and under its alias when
+// it has one. The map is copied: a state is a value, and the previous one
+// must not see the write.
+func (s dl4006State) setPipefail(value bool) dl4006State {
+	s.pipefailSet = value
+
+	if s.current != "" {
+		s.stages = maps.Clone(s.stages)
+		s.stages[s.current] = value
+	}
+
+	return s
+}
+
+// enterStage starts a stage FROM image. It inherits the pipefail of the named
+// stage it is built on; an image that is not a stage name, one behind a
+// registry included, starts without it.
+func (s dl4006State) enterStage(image syntax.BaseImage) dl4006State {
+	next := dl4006State{stages: s.stages}
+	if image.Alias != nil {
+		next.current = *image.Alias
+	}
+
+	return next.setPipefail(s.stages[image.Image])
 }
 
 // DL4006Rule checks for pipefail with pipes.
@@ -40,7 +71,7 @@ func (*DL4006Rule) Message() string {
 // InitialState returns the initial state for this rule.
 func (*DL4006Rule) InitialState() rule.State {
 	return rule.EmptyState(dl4006State{
-		pipefailSet: false,
+		stages: make(map[string]bool),
 	})
 }
 
@@ -51,25 +82,14 @@ func (*DL4006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Reset state on new FROM
-		currentState.pipefailSet = false
-
-		return state.ReplaceData(currentState)
+		return state.ReplaceData(currentState.enterStage(inst.Image))
 
 	case *syntax.Shell:
-		// Check if SHELL sets pipefail
 		if len(inst.Arguments) > 0 {
 			shellCmd := strings.Join(inst.Arguments, " ")
 
-			// Check if it's a non-POSIX shell (fish, powershell, etc)
-			if isNonPosixShell(shellCmd) {
-				currentState.pipefailSet = true // Skip checks for non-POSIX shells
-
-				return state.ReplaceData(currentState)
-			}
-
-			// Check if pipefail is set
-			currentState.pipefailSet = hasPipefailOption(shellCmd)
+			// A non-POSIX shell (fish, powershell) has no pipefail to ask for.
+			currentState = currentState.setPipefail(isNonPosixShell(shellCmd) || hasPipefailOption(shellCmd))
 		}
 
 		return state.ReplaceData(currentState)

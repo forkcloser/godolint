@@ -369,6 +369,66 @@ func TestDL3040(t *testing.T) {
 	)
 
 	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm -fr /var/cache/libdnf5`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache (2)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm -r -f /var/cache/libdnf5/*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache (3)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm -rf /var/cache/libdnf5*`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertNoViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache (4)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm /var/cache/libdnf5`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
+		"ok with any form of recursive removal of the libdnf5 cache (5)",
+		func(t *testing.T) {
+			t.Parallel()
+
+			dockerfile := `RUN dnf -y install && rm -rf /var/cache/yum`
+			violations := testutils.LintDockerfile(dockerfile, allRules)
+
+			testutils.AssertContainsViolation(t, violations, "DL3040")
+		},
+	)
+
+	t.Run(
 		"ok with cache mount at /var/cache/yum",
 		func(t *testing.T) {
 			t.Parallel()

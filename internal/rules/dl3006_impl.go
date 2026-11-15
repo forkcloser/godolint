@@ -3,6 +3,7 @@ package rules
 import (
 	"maps"
 	"strings"
+	"unicode"
 
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/syntax"
@@ -54,6 +55,10 @@ func (*DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	currentState := rule.Data[dl3006State](state)
 
+	// The stages before this one: a stage's own alias is not a previous stage,
+	// so `FROM app-${X} AS app-final` must not match itself.
+	previous := currentState.aliases
+
 	// Add alias to set if present
 	if from.Image.Alias != nil {
 		newAliases := make(map[string]bool)
@@ -80,13 +85,8 @@ func (*DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		return state
 	}
 
-	// Variable reference - OK
-	if strings.HasPrefix(from.Image.Image, "$") {
-		return state
-	}
-
-	// FROM alias reference - OK
-	if currentState.aliases[from.Image.Image] {
+	// A previous stage, or a variable that may name one - OK
+	if isPreviousStage(dropQuotes(from.Image.Image), previous) {
 		return state
 	}
 
@@ -103,4 +103,80 @@ func (*DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 // Finalize performs final checks after processing all instructions.
 func (*DL3006Rule) Finalize(state rule.State) rule.State {
 	return state // No finalization needed
+}
+
+// isPreviousStage reports whether image refers to a stage in aliases. An
+// image that starts with a variable cannot be resolved and is taken for one;
+// a variable elsewhere in the name (base-${TARGETARCH}) is a wildcard, matched
+// against the aliases.
+// Ported from isPreviousStage in DL3006.hs.
+func isPreviousStage(image string, aliases map[string]bool) bool {
+	if strings.HasPrefix(image, "$") {
+		return true
+	}
+
+	if !strings.Contains(image, "$") {
+		return aliases[image]
+	}
+
+	literals := literalParts(image)
+
+	for alias := range aliases {
+		if matchesLiterals(literals, alias) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// literalParts is the text of name around its variables, in order:
+// base-${ARCH}-slim gives "base-" and "-slim". Never empty: a name with no
+// variable is its own single part.
+func literalParts(name string) []string {
+	var parts []string
+
+	for {
+		literal, rest, found := strings.Cut(name, "$")
+		parts = append(parts, literal)
+
+		if !found {
+			return parts
+		}
+
+		if braced, ok := strings.CutPrefix(rest, "{"); ok {
+			_, name, _ = strings.Cut(braced, "}")
+		} else {
+			name = strings.TrimLeftFunc(rest, func(char rune) bool {
+				return unicode.IsLetter(char) || unicode.IsNumber(char) || char == '_'
+			})
+		}
+	}
+}
+
+// matchesLiterals reports whether name is the literals in order with anything,
+// or nothing, between them: the first a prefix, the last a suffix.
+func matchesLiterals(literals []string, name string) bool {
+	if len(literals) == 0 {
+		return name == ""
+	}
+
+	rest, ok := strings.CutPrefix(name, literals[0])
+	if !ok {
+		return false
+	}
+
+	middle := literals[1:]
+	if len(middle) == 0 {
+		return rest == ""
+	}
+
+	for _, literal := range middle[:len(middle)-1] {
+		_, rest, ok = strings.Cut(rest, literal)
+		if !ok {
+			return false
+		}
+	}
+
+	return strings.HasSuffix(rest, middle[len(middle)-1])
 }

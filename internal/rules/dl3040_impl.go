@@ -59,11 +59,13 @@ func isDnfInstallCmd(name string, cmd shell.Command) bool {
 	}, cmd)
 }
 
-// isDnfCleanCmd is `<name> clean all`, or an rm of dnf's cache.
+// isDnfCleanCmd is `<name> clean all`, or a recursive rm of dnf's cache.
 func isDnfCleanCmd(name string, cmd shell.Command) bool {
 	if shell.CmdHasAllArgs(name, []string{cleanArg, allArg}, cmd) {
 		return true
 	}
 
-	return shell.CmdHasAllArgs("rm", []string{recursiveForceFlag, "/var/cache/libdnf5"}, cmd)
+	return shell.IsRecursiveRemoval(
+		[]string{"/var/cache/libdnf5", "/var/cache/libdnf5/", "/var/cache/libdnf5/*", "/var/cache/libdnf5*"}, cmd,
+	)
 }
