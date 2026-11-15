@@ -14,11 +14,11 @@ security: do::security::default
 generate:
     #!/usr/bin/env bash
     set -euo pipefail
-    version="$(limen pins get hadolint version)"
+    commit="$(limen pins get hadolint commit)"
     url="$(limen pins get hadolint url)"
     sum="$(limen pins get hadolint sha256)"
-    dl=".build/hadolint/hadolint-${version}.tar.gz"
-    src=".build/hadolint/hadolint-${version#v}"
+    dl=".build/hadolint/hadolint-${commit}.tar.gz"
+    src=".build/hadolint/hadolint-${commit}"
     mkdir -p .build/hadolint
     if [ ! -f "${dl}" ]; then
       curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 3 -o "${dl}.part" "${url}"

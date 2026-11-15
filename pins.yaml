@@ -1,16 +1,21 @@
-# The hadolint source godolint is generated from, pinned by tag and digest
-# (book/tooling.md, "Pinned artifacts beyond aqua"). `just generate` reads the
-# entry back with `limen pins get hadolint url|sha256`, fetches the tarball
-# into .build/ and regenerates internal/rules from it; `just lint` regenerates
-# and fails on a diff, so the committed rules and tests always match the pin.
-# Renovate proposes the bumps and `limen pins refresh` recomputes the digest.
+# The hadolint source godolint is generated from, pinned on a commit of its
+# master and by digest (book/tooling.md, "Pinned artifacts beyond aqua"): the
+# rules follow hadolint's master, which runs ahead of its tags. `just
+# generate` reads the entry back with `limen pins get hadolint
+# commit|url|sha256`, fetches the tarball into .build/ and regenerates
+# internal/rules from it; `just lint` regenerates and fails on a diff, so the
+# committed rules and tests always match the pin. Renovate proposes master's
+# new head when it moves, red until the commits are ported (UPSTREAM.md), and
+# `limen pins refresh` recomputes the digest.
 pins:
   - name: hadolint
-    renovate: github-tags hadolint/hadolint
-    version: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
-    url: https://github.com/hadolint/hadolint/archive/${version}.tar.gz
+    renovate: git-refs https://github.com/hadolint/hadolint
+    version: master
+    commit: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
+    url: https://github.com/hadolint/hadolint/archive/${commit}.tar.gz
     verify: download
     digest:
-      version: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
+      version: master
+      commit: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
       source: 7a4dfb1df7874032a8161ca8a508a1336b4b4eefbbd3c4810706701275a2f526
       sha256: a202e925d7fb5211ac23cc418d8d9a0509962fcedd04dc27e3ff05840d2ec0fc
