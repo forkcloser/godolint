@@ -71,15 +71,29 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 // does after Process has run: a rule such as DL3057 reports them, a test
 // sees them, and a linter's output does not.
 func WithoutIgnored(failures []rule.CheckFailure) []rule.CheckFailure {
-	filtered := []rule.CheckFailure{}
+	return Settle(failures, nil, nil)
+}
+
+// Settle gives the failures of a run the severity overrides names for their
+// code, then drops those whose code is in ignored and those at the Ignore
+// severity, as hadolint's fixSeverity does. The override comes first, so a
+// rule that is off (DL3057) is reported once it is given a severity.
+func Settle(
+	failures []rule.CheckFailure, overrides map[rule.Code]rule.Severity, ignored map[rule.Code]bool,
+) []rule.CheckFailure {
+	settled := []rule.CheckFailure{}
 
 	for _, failure := range failures {
-		if failure.Severity != rule.Ignore {
-			filtered = append(filtered, failure)
+		if severity, overridden := overrides[failure.Code]; overridden {
+			failure.Severity = severity
+		}
+
+		if !ignored[failure.Code] && failure.Severity != rule.Ignore {
+			settled = append(settled, failure)
 		}
 	}
 
-	return filtered
+	return settled
 }
 
 // filterIgnored removes failures that are suppressed by ignore pragmas.
