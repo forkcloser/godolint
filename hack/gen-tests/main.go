@@ -111,8 +111,8 @@ var misfiled = map[string]string{
 // counted and named in the report: nothing is left out without a word.
 func notPorted(testCase TestCase) string {
 	if testCase.Config != nil && len(testCase.Config.AllowedRegistries) > 0 {
-		return "sets allowedRegistries, which DL3026 takes once it has a WithConfig constructor " +
-			"(https://github.com/forkcloser/godolint/issues/125)"
+		return "sets allowedRegistries for itself, and the template writes one configuration a rule " +
+			"(https://github.com/forkcloser/godolint/issues/130); DL3026's cases are hand rows meanwhile"
 	}
 
 	if issue, known := failing[testCase.RuleCode][testCase.Name]; known {
