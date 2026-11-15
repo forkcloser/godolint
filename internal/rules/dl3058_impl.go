@@ -76,9 +76,15 @@ func (*DL3058Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 
-// isValidEmail checks if a string is a valid email address (RFC5322).
+// isValidEmail reports whether email is an address and nothing more:
+// john@example.com. A name with the address (John Doe <john@example.com>),
+// or the address in angle brackets alone, is a mailbox, which the parser
+// takes and the label's type does not.
 func isValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed == nil {
+		return false
+	}
 
-	return err == nil
+	return parsed.Name == "" && parsed.Address == email
 }
