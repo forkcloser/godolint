@@ -280,6 +280,20 @@ result.HasWarnings()         // Check for warning-severity violations
 result.CountBySeverity()     // Get violation counts by severity
 ```
 
+### Rule Metadata
+
+```go
+// Rules - every rule, ordered by code
+for _, info := range sdk.Rules() {
+    fmt.Println(info.Code, info.Severity, info.Message)
+}
+
+// Rule - one rule by its code
+info, ok := sdk.Rule("DL3006")
+```
+
+A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has, and its `Message` in hadolint's words. A rule at `SeverityIgnore` (DL1001, DL3057) is off: its violations never reach a `Result`. A violation's message is its rule's, but for a rule about a label, which says `<label>` where the violation names the label (``Label `<label>` is missing.``); any other name in angle brackets (`<package>`, `<version>`) is the violation's text too.
+
 ### Typed Errors
 
 ```go

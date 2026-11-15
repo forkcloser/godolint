@@ -222,3 +222,96 @@ func TestContractRuleMessagesAreWhole(t *testing.T) {
 		}
 	}
 }
+
+// TestContractRulesDescribeEveryRule: Rules describes each rule AllRules
+// returns once, ordered by code, with that rule's severity and message; the slice is
+// the caller's, so changing it changes no later answer; Rule finds a rule by
+// its code as written and nothing else, shellcheck's codes included.
+func TestContractRulesDescribeEveryRule(t *testing.T) {
+	t.Parallel()
+
+	infos := sdk.Rules()
+	if len(infos) != len(sdk.AllRules()) {
+		t.Fatalf("Rules describes %d rules, AllRules returns %d", len(infos), len(sdk.AllRules()))
+	}
+
+	severities := []sdk.Severity{
+		sdk.SeverityError, sdk.SeverityWarning, sdk.SeverityInfo, sdk.SeverityStyle, sdk.SeverityIgnore,
+	}
+
+	declared := map[string]sdk.RuleInfo{}
+	for _, r := range sdk.AllRules() {
+		declared[string(r.Code())] = sdk.RuleInfo{
+			Code: string(r.Code()), Severity: sdk.Severity(r.Severity().String()), Message: r.Message(),
+		}
+	}
+
+	for i, info := range infos {
+		if info != declared[info.Code] {
+			t.Errorf("%s: described as %+v, declared as %+v", info.Code, info, declared[info.Code])
+		}
+
+		if len(info.Code) != 6 || !strings.HasPrefix(info.Code, "DL") {
+			t.Errorf("code %q is not DL and four digits", info.Code)
+		}
+
+		if i > 0 && infos[i-1].Code >= info.Code {
+			t.Errorf("%s comes after %s: not ordered by code, or twice", info.Code, infos[i-1].Code)
+		}
+
+		if info.Message == "" || !slices.Contains(severities, info.Severity) {
+			t.Errorf("%s: severity %q, message %q", info.Code, info.Severity, info.Message)
+		}
+
+		if got, ok := sdk.Rule(info.Code); !ok || got != info {
+			t.Errorf("Rule(%q) = %+v, %v; want %+v", info.Code, got, ok, info)
+		}
+	}
+
+	first := infos[0]
+	infos[0] = sdk.RuleInfo{Code: "changed"}
+
+	if again := sdk.Rules(); again[0] != first {
+		t.Errorf("after the caller changed its slice, Rules starts with %+v, want %+v", again[0], first)
+	}
+
+	for _, code := range []string{"", "dl3006", "DL30060", "SC2086"} {
+		if got, ok := sdk.Rule(code); ok || got != (sdk.RuleInfo{}) {
+			t.Errorf("Rule(%q) = %+v, %v; want no rule", code, got, ok)
+		}
+	}
+}
+
+// TestContractRuleInfoIsWhatAViolationCarries: a violation has its rule's
+// severity and message; a rule about a label says `<label>` where its
+// violation names the label, and any other name in angle brackets is the
+// violation's text too; a rule at SeverityIgnore reports nothing a Result
+// holds.
+func TestContractRuleInfoIsWhatAViolationCarries(t *testing.T) {
+	t.Parallel()
+
+	r := lint(t, "FROM ubuntu\nMAINTAINER x\n")
+	if len(r.Violations) == 0 {
+		t.Fatal("no violation to compare")
+	}
+
+	for _, v := range r.Violations {
+		info, ok := sdk.Rule(v.Code)
+		if !ok || info.Severity != v.Severity || info.Message != v.Message {
+			t.Errorf("violation %+v; its rule: %+v, %v", v, info, ok)
+		}
+	}
+
+	if info, _ := sdk.Rule("DL3049"); info.Message != "Label `<label>` is missing." {
+		t.Errorf("DL3049's message %q; want `<label>` in the label's place", info.Message)
+	}
+
+	// No HEALTHCHECK, which DL3057 is about, and DL3057 is off.
+	if info, ok := sdk.Rule("DL3057"); !ok || info.Severity != sdk.SeverityIgnore {
+		t.Fatalf("DL3057: %+v, %v; want SeverityIgnore", info, ok)
+	}
+
+	if slices.Contains(codes(r), "DL3057") {
+		t.Errorf("a rule at SeverityIgnore reached the result: %v", codes(r))
+	}
+}

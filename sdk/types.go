@@ -12,7 +12,26 @@ const (
 	SeverityInfo Severity = "info"
 	// SeverityStyle indicates a style preference.
 	SeverityStyle Severity = "style"
+	// SeverityIgnore is the severity of a rule that is off: it runs, and its
+	// violations never reach a Result. Only a RuleInfo carries it.
+	SeverityIgnore Severity = "ignore"
 )
+
+// RuleInfo describes a rule, as Rules and Rule return it.
+type RuleInfo struct {
+	// Code is the rule's code, DL and four digits (e.g., "DL3006"). No two
+	// rules share one.
+	Code string `json:"code"`
+	// Severity is the severity the rule declares, and the Severity of every
+	// Violation it reports.
+	Severity Severity `json:"severity"`
+	// Message is the rule's description, in hadolint's words, and the Message
+	// of every Violation it reports, but for a rule about a label: its Message
+	// says `<label>` where a Violation's names the label ("Label `<label>` is
+	// missing."). Any other name in angle brackets (`<package>`, `<version>`)
+	// is the Violation's text too.
+	Message string `json:"message"`
+}
 
 // Violation represents a single linting violation.
 type Violation struct {

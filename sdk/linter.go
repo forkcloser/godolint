@@ -175,9 +175,9 @@ func convertSeverity(s rule.Severity) Severity {
 	case rule.Style:
 		return SeverityStyle
 	case rule.Ignore:
-		// Unreachable in practice: Lint drops Ignore-severity
-		// failures before they reach the SDK conversion.
-		return SeverityInfo
+		// A rule's own severity only: Lint drops Ignore-severity failures
+		// before they reach the conversion.
+		return SeverityIgnore
 	default:
 		return SeverityInfo
 	}
