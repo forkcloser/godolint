@@ -562,8 +562,8 @@ with `go install github.com/forkcloser/godolint/cmd/godolint@vX.Y.Z`.
 ## Limitations
 
 - The command writes JSON only: see [Output Format](#output-format).
-- Quote handling differs slightly from hadolint (buildkit includes quotes in
-  values).
+- In the old `ENV key value` and `LABEL key value` forms, the quotes of the
+  value are removed, as a build removes them; hadolint keeps them there.
 
 ## Contributing
 
