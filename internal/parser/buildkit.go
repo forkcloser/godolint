@@ -333,80 +333,90 @@ func convertAdd(node *parser.Node) (*syntax.Add, error) {
 	}, nil
 }
 
-//nolint:unparam // Uniform signature with other converters for consistent error handling
-func convertEnv(node *parser.Node) (*syntax.Env, error) {
-	values := collectValues(node)
+// keyValue is one pair of an ENV or a LABEL.
+type keyValue struct {
+	key, value string
+}
 
-	var pairs []syntax.EnvPair
+// pairs reads the pairs of an ENV or a LABEL. buildkit hands them over three
+// nodes a pair: the key and the value as they are written, quotes included,
+// and what stood between them, `=` or nothing for the old `key value` form,
+// whose value is the rest of the line.
+func pairs(node *parser.Node) []keyValue {
+	var found []keyValue
 
-	// ENV has two syntaxes:
-	// 1. "ENV key=value key2=value2" - buildkit tokenizes as: key, value, =, key2, value2, =
-	// 2. "ENV key value" - buildkit tokenizes as: key, value
-	for idx := 0; idx < len(values); {
+	for key := node.Next; key != nil && key.Next != nil; {
+		value := key.Next
+		found = append(found, keyValue{key: pairText(key.Value), value: pairText(value.Value)})
+
+		if value.Next == nil {
+			break
+		}
+
+		key = value.Next.Next
+	}
+
+	return found
+}
+
+// pairText is a key or a value as it is meant: the pieces written in double
+// quotes, in single quotes and in none, joined, the quotes gone. A quote
+// escaped inside its own kind of quotes, and a blank escaped outside any,
+// stand for themselves; any other backslash is kept. So `"/opt/bin":$PATH`
+// is `/opt/bin:$PATH`, and a value is never cut at a quote that closes
+// before its end.
+func pairText(written string) string {
+	var (
+		text  strings.Builder
+		quote rune
+	)
+
+	runes := []rune(written)
+
+	for idx := 0; idx < len(runes); idx++ {
+		char := runes[idx]
+
+		escapes := quote
+		if quote == 0 {
+			escapes = ' '
+		}
+
 		switch {
-		case idx+2 < len(values) && values[idx+2] == "=":
-			// Pattern: key value = (key=value syntax)
-			pairs = append(pairs, syntax.EnvPair{
-				Key:   values[idx],
-				Value: unquote(values[idx+1]),
-			})
-			idx += 3 // Skip key, value, =
-		case idx+1 < len(values):
-			// Whitespace syntax: key value
-			pairs = append(pairs, syntax.EnvPair{
-				Key:   values[idx],
-				Value: unquote(values[idx+1]),
-			})
-			idx += 2
-		default:
+		case char == '\\' && idx+1 < len(runes) && (runes[idx+1] == escapes || quote == 0 && runes[idx+1] == '\t'):
 			idx++
+			text.WriteRune(runes[idx])
+		case quote == 0 && (char == '"' || char == '\''):
+			quote = char
+		case char == quote:
+			quote = 0
+		default:
+			text.WriteRune(char)
 		}
 	}
 
-	return &syntax.Env{
-		Pairs: pairs,
-	}, nil
+	return text.String()
 }
 
-// unquote removes surrounding double quotes from a string if present.
-func unquote(s string) string {
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
-		return s[1 : len(s)-1]
+//nolint:unparam // Uniform signature with other converters for consistent error handling
+func convertEnv(node *parser.Node) (*syntax.Env, error) {
+	env := &syntax.Env{}
+
+	for _, pair := range pairs(node) {
+		env.Pairs = append(env.Pairs, syntax.EnvPair{Key: pair.key, Value: pair.value})
 	}
 
-	return s
+	return env, nil
 }
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
 func convertLabel(node *parser.Node) (*syntax.Label, error) {
-	values := collectValues(node)
+	label := &syntax.Label{}
 
-	var pairs []syntax.LabelPair
-
-	// Buildkit returns tokens as: key, value, "=", key2, value2, "=", ...
-	for i := 0; i+2 < len(values); i += 3 {
-		key := values[i]
-		value := stripQuotes(values[i+1])
-		// values[i+2] is "=", skip it
-
-		pairs = append(pairs, syntax.LabelPair{
-			Key:   key,
-			Value: value,
-		})
+	for _, pair := range pairs(node) {
+		label.Pairs = append(label.Pairs, syntax.LabelPair{Key: pair.key, Value: pair.value})
 	}
 
-	return &syntax.Label{
-		Pairs: pairs,
-	}, nil
-}
-
-// stripQuotes removes surrounding quotes from a string if present.
-func stripQuotes(s string) string {
-	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
-		return s[1 : len(s)-1]
-	}
-
-	return s
+	return label, nil
 }
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling

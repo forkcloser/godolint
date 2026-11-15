@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -153,6 +154,70 @@ func TestParseFromSplitsTheImageReference(t *testing.T) {
 
 			if deref(from.Image.Alias) != "stage" {
 				t.Errorf("alias %q; want stage", deref(from.Image.Alias))
+			}
+		})
+	}
+}
+
+// TestParsePairs: the keys and values of ENV and LABEL, as they are meant:
+// quotes of either kind gone wherever they stand, a pair after a value that
+// is quoted in part not lost, an escaped quote or blank itself, and the old
+// `key value` form taking the rest of the line.
+func TestParsePairs(t *testing.T) {
+	t.Parallel()
+
+	type pair = [2]string
+
+	for _, tc := range []struct {
+		name string
+		line string
+		want []pair
+	}{
+		{"plain", `A=1 B=two`, []pair{{"A", "1"}, {"B", "two"}}},
+		{"double quotes", `A="x y" B=2`, []pair{{"A", "x y"}, {"B", "2"}}},
+		{"single quotes", `A='x y' B='2'`, []pair{{"A", "x y"}, {"B", "2"}}},
+		{"empty values", `A="" B='' C=3`, []pair{{"A", ""}, {"B", ""}, {"C", "3"}}},
+		{"quoted in part, then another pair", `PATH="/opt/bin":$PATH NEXT=1`, []pair{{"PATH", "/opt/bin:$PATH"}, {"NEXT", "1"}}},
+		{"a quoted start and a bare end", `A="x"y B=$A`, []pair{{"A", "xy"}, {"B", "$A"}}},
+		{"a bare start and a quoted end", `A=x"y z" B=1`, []pair{{"A", "xy z"}, {"B", "1"}}},
+		{"both kinds in one value", `A="x "'y z' B=1`, []pair{{"A", "x y z"}, {"B", "1"}}},
+		{"a quoted key", `"com.example.vendor"="ACME Incorporated" 'k'=v`, []pair{{"com.example.vendor", "ACME Incorporated"}, {"k", "v"}}},
+		{"an escaped double quote", `A="say \"hi\"" B=1`, []pair{{"A", `say "hi"`}, {"B", "1"}}},
+		{"a double quote inside single quotes", `A='say "hi"'`, []pair{{"A", `say "hi"`}}},
+		{"an escaped blank", `A=x\ y B=1`, []pair{{"A", "x y"}, {"B", "1"}}},
+		{"an escaped tab", "A=b\\\tc B=1", []pair{{"A", "b\tc"}, {"B", "1"}}},
+		{"a double quote escaped inside single quotes is not", `A='x\"y'`, []pair{{"A", `x\"y`}}},
+		{"a single quote escaped inside double quotes is not", `A="x\'y"`, []pair{{"A", `x\'y`}}},
+		{"a backslash that escapes nothing", `A=C:\dir\file B="C:\dir"`, []pair{{"A", `C:\dir\file`}, {"B", `C:\dir`}}},
+		{"the old form", `key the rest of the line`, []pair{{"key", "the rest of the line"}}},
+		{"the old form, quoted", `version "1.0.0"`, []pair{{"version", "1.0.0"}}},
+		{"the old form, quoted in part", `maintainer "Jane Doe" <jane@example.com>`, []pair{{"maintainer", "Jane Doe <jane@example.com>"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			instructions, err := parser.NewBuildkitParser().
+				Parse([]byte("FROM a\nENV " + tc.line + "\nLABEL " + tc.line + "\n"))
+			if err != nil || len(instructions) != 3 {
+				t.Fatalf("Parse() = %v, %v; want three instructions", instructions, err)
+			}
+
+			var env, label []pair
+
+			for _, kv := range instructions[1].Instruction.(*syntax.Env).Pairs {
+				env = append(env, pair{kv.Key, kv.Value})
+			}
+
+			for _, kv := range instructions[2].Instruction.(*syntax.Label).Pairs {
+				label = append(label, pair{kv.Key, kv.Value})
+			}
+
+			if !slices.Equal(env, tc.want) {
+				t.Errorf("ENV pairs %q, want %q", env, tc.want)
+			}
+
+			if !slices.Equal(label, tc.want) {
+				t.Errorf("LABEL pairs %q, want %q", label, tc.want)
 			}
 		})
 	}
