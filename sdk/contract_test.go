@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/sdk"
 )
 
@@ -138,8 +139,7 @@ func TestContractViolationsCarryLineSeverityMessage(t *testing.T) {
 
 // TestContractOptionsSelectRules: WithDisabledRules drops the named codes;
 // WithRuleSet picks a set, recommended being the error and warning rules
-// and any name no set has being every rule; AllRules lists every rule
-// once.
+// and any name no set has being every rule.
 func TestContractOptionsSelectRules(t *testing.T) {
 	t.Parallel()
 
@@ -152,34 +152,33 @@ func TestContractOptionsSelectRules(t *testing.T) {
 		t.Errorf("WithDisabledRules(DL3006): %v", got)
 	}
 
-	for _, set := range []sdk.RuleSet{sdk.RuleSetAll, sdk.RuleSetRecommended, sdk.RuleSetStrict} {
-		if len(sdk.GetRuleSet(set)) == 0 {
-			t.Errorf("rule set %q is empty", set)
-		}
+	// One RUN that an error rule (DL4000 above), warning rules (DL3008) and
+	// info rules (DL3009, DL3015) all report.
+	const graded = file + "RUN apt-get update && apt-get install curl\n"
+
+	every := lint(t, graded, sdk.WithRuleSet(sdk.RuleSetAll))
+	if got := codes(every); !slices.Contains(got, "DL4000") || !slices.Contains(got, "DL3008") ||
+		!slices.Contains(got, "DL3015") {
+		t.Errorf("every rule: %v", got)
 	}
 
-	if got := codes(lint(t, file, sdk.WithRuleSet(sdk.RuleSet("nonesuch")))); !slices.Contains(got, "DL3006") {
-		t.Errorf("an unknown rule set, every rule: %v", got)
+	if !slices.Equal(codes(lint(t, graded)), codes(every)) {
+		t.Errorf("no rule set is not every rule: %v, %v", codes(lint(t, graded)), codes(every))
 	}
 
-	for _, r := range sdk.GetRuleSet(sdk.RuleSetRecommended) {
-		if sev := r.Severity().String(); sev != "error" && sev != "warning" {
-			t.Errorf("recommended holds %s at %s", r.Code(), sev)
-		}
+	// An info finding tells every rule from the recommended ones.
+	if got := codes(lint(t, graded, sdk.WithRuleSet(sdk.RuleSet("nonesuch")))); !slices.Equal(got, codes(every)) {
+		t.Errorf("an unknown rule set is not every rule: %v, want %v", got, codes(every))
 	}
 
-	seen := map[string]bool{}
+	recommended := lint(t, graded, sdk.WithRuleSet(sdk.RuleSetRecommended))
+	if got := codes(recommended); !slices.Contains(got, "DL4000") || !slices.Contains(got, "DL3008") {
+		t.Errorf("recommended lacks an error or a warning rule: %v", got)
+	}
 
-	for _, r := range sdk.AllRules() {
-		code := string(r.Code())
-		if seen[code] {
-			t.Errorf("rule %s listed twice", code)
-		}
-
-		seen[code] = true
-
-		if !strings.HasPrefix(code, "DL") {
-			t.Errorf("rule %s is not a DL code", code)
+	for _, v := range recommended.Violations {
+		if v.Severity != sdk.SeverityError && v.Severity != sdk.SeverityWarning {
+			t.Errorf("recommended reports %s at %s", v.Code, v.Severity)
 		}
 	}
 }
@@ -248,24 +247,23 @@ func TestContractOnBuild(t *testing.T) {
 func TestContractRuleMessagesAreWhole(t *testing.T) {
 	t.Parallel()
 
-	for _, r := range sdk.AllRules() {
-		msg := r.Message()
-		if msg == "" || strings.Count(msg, "`")%2 != 0 {
-			t.Errorf("%s: message %q is not a whole description", r.Code(), msg)
+	for _, info := range sdk.Rules() {
+		if info.Message == "" || strings.Count(info.Message, "`")%2 != 0 {
+			t.Errorf("%s: message %q is not a whole description", info.Code, info.Message)
 		}
 	}
 }
 
-// TestContractRulesDescribeEveryRule: Rules describes each rule AllRules
-// returns once, ordered by code, with that rule's severity and message; the slice is
+// TestContractRulesDescribeEveryRule: Rules describes each rule there is
+// once, ordered by code, with that rule's severity and message; the slice is
 // the caller's, so changing it changes no later answer; Rule finds a rule by
 // its code as written and nothing else, shellcheck's codes included.
 func TestContractRulesDescribeEveryRule(t *testing.T) {
 	t.Parallel()
 
 	infos := sdk.Rules()
-	if len(infos) != len(sdk.AllRules()) {
-		t.Fatalf("Rules describes %d rules, AllRules returns %d", len(infos), len(sdk.AllRules()))
+	if len(infos) != len(rules.All()) {
+		t.Fatalf("Rules describes %d rules, there are %d", len(infos), len(rules.All()))
 	}
 
 	severities := []sdk.Severity{
@@ -273,7 +271,7 @@ func TestContractRulesDescribeEveryRule(t *testing.T) {
 	}
 
 	declared := map[string]sdk.RuleInfo{}
-	for _, r := range sdk.AllRules() {
+	for _, r := range rules.All() {
 		declared[string(r.Code())] = sdk.RuleInfo{
 			Code: string(r.Code()), Severity: sdk.Severity(r.Severity().String()), Message: r.Message(),
 		}

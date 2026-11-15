@@ -21,7 +21,6 @@ import (
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/internal/shell"
-	"github.com/forkcloser/godolint/sdk"
 )
 
 // errViolations is how Run tells main that the lint found something: the
@@ -93,7 +92,9 @@ func (c *CLI) Run() error {
 	}
 
 	// One processor, every rule, reused across files.
-	processor := process.NewProcessor(ruleSet).WithDisableIgnorePragmas(settled.disableIgnorePragma)
+	processor := process.NewProcessor(ruleSet).
+		WithDisableIgnorePragmas(settled.disableIgnorePragma).
+		WithIgnored(settled.ignored)
 
 	allFailures, err := lintFiles(processor, c.Dockerfiles, settled)
 	if err != nil {
@@ -245,7 +246,7 @@ func isSet(value *bool) bool {
 // buildRules assembles the rule set, wiring in the shellcheck integration
 // unless it is disabled or the binary is missing from PATH.
 func (c *CLI) buildRules(cfg *config.Config) ([]rule.Rule, error) {
-	ruleSet := sdk.AllRules()
+	ruleSet := rules.All()
 	for i, given := range ruleSet {
 		ruleSet[i] = rules.WithConfig(given, cfg)
 	}
@@ -298,7 +299,7 @@ func lintFiles(processor *process.Processor, paths []string, settled *settings) 
 
 		slog.Debug("parsed Dockerfile", "file", dockerfilePath, "instructions", len(instructions))
 
-		failures := process.Settle(processor.Run(instructions), settled.overrides, settled.ignored)
+		failures := process.Settle(processor.Run(instructions), settled.overrides)
 		for i := range failures {
 			failures[i].File = dockerfilePath
 		}

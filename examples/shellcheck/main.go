@@ -2,13 +2,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/forkcloser/godolint/internal/parser"
-	"github.com/forkcloser/godolint/internal/process"
-	"github.com/forkcloser/godolint/internal/rule"
-	"github.com/forkcloser/godolint/internal/shell"
+	"github.com/forkcloser/godolint/sdk"
 )
 
 func main() {
@@ -17,38 +16,32 @@ ENV MY_VAR=value
 ARG BUILD_ARG=default
 SHELL ["/bin/bash", "-c"]
 
-# This should trigger SC2086 (unquoted variable)
+# Not reported: shellcheck is told the variables ENV and ARG set
 RUN echo $MY_VAR
 
-# This should trigger SC2154 (undefined variable)
+# SC2086: an unquoted variable shellcheck knows nothing of
 RUN echo $UNDEFINED_VAR
 
-# This should be fine
+# Nothing for shellcheck here
 RUN apt-get update && apt-get install -y curl
 `
 
-	// Parse
-	p := parser.NewBuildkitParser()
+	// WithShellcheck adds shellcheck's findings on the RUN instructions to
+	// the rules of the linter. It needs the shellcheck binary in PATH.
+	linter := sdk.New(sdk.WithShellcheck())
 
-	instructions, err := p.Parse([]byte(dockerfile))
+	result, err := linter.Lint(context.Background(), []byte(dockerfile))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to lint: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Create shellcheck rule
-	checker := shell.NewBinaryShellchecker()
-	scRule := shell.NewShellcheckRule(checker)
+	// Shellcheck's codes are SC and four digits; the others are godolint's own.
+	fmt.Println("Shellcheck violations:")
 
-	// Process
-	processor := process.NewProcessor([]rule.Rule{scRule})
-	failures := processor.Run(instructions)
-
-	// Report
-	fmt.Printf("Found %d shellcheck violations:\n\n", len(failures))
-
-	for _, f := range failures {
-		fmt.Printf("Line %d: [%s] %s - %s\n",
-			f.Line, f.Severity, f.Code, f.Message)
+	for _, v := range result.Violations {
+		if strings.HasPrefix(v.Code, "SC") {
+			fmt.Printf("Line %d: [%s] %s - %s\n", v.Line, v.Severity, v.Code, v.Message)
+		}
 	}
 }

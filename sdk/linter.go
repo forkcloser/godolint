@@ -17,8 +17,7 @@ import (
 
 // Linter performs Dockerfile linting.
 type Linter struct {
-	parser parser.Parser
-	rules  []rule.Rule
+	rules []rule.Rule
 
 	// What the options say of the rules a configuration reaches, and whether
 	// any option said anything.
@@ -36,38 +35,24 @@ type Linter struct {
 // Option configures a Linter.
 type Option func(*Linter)
 
-// WithParser sets a custom parser implementation.
-// By default, uses the buildkit parser.
-func WithParser(p parser.Parser) Option {
-	return func(l *Linter) {
-		l.parser = p
-	}
-}
-
-// WithRules sets custom rules to use for linting.
-// By default, uses AllRules().
-func WithRules(ruleSet []rule.Rule) Option {
-	return func(l *Linter) {
-		l.rules = ruleSet
-	}
-}
-
-// WithRuleSet uses a predefined rule set.
+// WithRuleSet uses a predefined rule set, in place of every rule: the
+// error and warning rules for RuleSetRecommended, every rule for RuleSetAll
+// and for any other value.
 func WithRuleSet(set RuleSet) Option {
 	return func(l *Linter) {
-		l.rules = GetRuleSet(set)
+		l.rules = ruleSet(set)
 	}
 }
 
 // WithDisabledRules returns an option that disables specific rules by their codes.
 // Example: WithDisabledRules("DL3000", "DL3007").
 //
-// No violation with one of the codes reaches a Result, wherever the option
-// stands among the others, and a code shellcheck reports (SC####) is one too.
+// A rule with one of the codes is not run, and no violation with one of
+// them reaches a Result, wherever the option stands among the others. A code
+// shellcheck reports (SC####) is one too: shellcheck still runs, and its
+// findings under that code are dropped.
 func WithDisabledRules(codes ...string) Option {
 	return func(l *Linter) {
-		l.rules = FilterRules(l.rules, codes)
-
 		for _, code := range codes {
 			l.ignored[rule.Code(code)] = true
 		}
@@ -215,11 +200,10 @@ func WithShellcheck(scOpts ...ShellcheckOption) Option {
 }
 
 // New creates a new Linter with the given options.
-// By default, uses all implemented rules and the buildkit parser.
+// By default, it has every implemented rule.
 func New(opts ...Option) *Linter {
 	lint := &Linter{
-		parser:    parser.NewBuildkitParser(),
-		rules:     AllRules(),
+		rules:     rules.All(),
 		cfg:       config.Default(),
 		overrides: map[rule.Code]rule.Severity{},
 		ignored:   map[rule.Code]bool{},
@@ -232,9 +216,6 @@ func New(opts ...Option) *Linter {
 	// Once every option has spoken: the rules a configuration reaches are
 	// made with it, whichever option chose the rules.
 	if lint.configured {
-		// The slice may be the caller's (WithRules).
-		lint.rules = slices.Clone(lint.rules)
-
 		for i, r := range lint.rules {
 			lint.rules[i] = rules.WithConfig(r, lint.cfg)
 		}
@@ -262,7 +243,7 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	}
 
 	// Parse Dockerfile
-	instructions, err := l.parser.Parse(dockerfile)
+	instructions, err := parser.NewBuildkitParser().Parse(dockerfile)
 	if err != nil {
 		return nil, &ParseError{Err: err}
 	}
@@ -276,8 +257,10 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	}
 
 	// Run rules
-	processor := process.NewProcessor(l.rules).WithDisableIgnorePragmas(l.disableIgnorePragma)
-	failures := process.Settle(processor.Run(instructions), l.overrides, l.ignored)
+	processor := process.NewProcessor(l.rules).
+		WithDisableIgnorePragmas(l.disableIgnorePragma).
+		WithIgnored(l.ignored)
+	failures := process.Settle(processor.Run(instructions), l.overrides)
 
 	// Convert to SDK violations
 	violations := make([]Violation, len(failures))

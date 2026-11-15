@@ -338,7 +338,6 @@ These are hadolint's settings under hadolint's meanings: `ignored`, `override`, 
 
 - `RuleSetAll` - All implemented rules (default)
 - `RuleSetRecommended` - Only Error and Warning severity rules
-- `RuleSetStrict` - Same as All (for compatibility)
 
 ### Result Methods
 
@@ -366,7 +365,6 @@ A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has
 
 ```go
 *sdk.ParseError    // Dockerfile parsing failed
-*sdk.RuleError     // Rule execution failed
 *sdk.ConfigError   // An option was given a value it does not take
 ```
 

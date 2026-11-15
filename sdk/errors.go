@@ -16,20 +16,6 @@ func (e *ParseError) Unwrap() error {
 	return e.Err
 }
 
-// RuleError indicates a rule execution failure.
-type RuleError struct {
-	RuleCode string
-	Err      error
-}
-
-func (e *RuleError) Error() string {
-	return fmt.Sprintf("rule %s failed: %v", e.RuleCode, e.Err)
-}
-
-func (e *RuleError) Unwrap() error {
-	return e.Err
-}
-
 // ConfigError indicates an option given a value it does not take: Lint
 // returns it, and lints nothing.
 type ConfigError struct {
