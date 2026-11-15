@@ -2,8 +2,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"go/format"
 	"io"
 	"maps"
 	"os"
@@ -40,7 +42,13 @@ type TestCase struct {
 type RuleTests struct {
 	RuleCode  string
 	TestCases []TestCase
-	Config    *HadolintConfig
+	// Shared is whether every case runs under one configuration, Config,
+	// which is then written once, above the cases. Otherwise each case
+	// writes its own.
+	Shared bool
+	Config *HadolintConfig
+	// Configured is whether any case has a configuration.
+	Configured bool
 }
 
 // HadolintConfig represents hadolint configuration for test cases.
@@ -75,11 +83,6 @@ var misfiled = map[string]string{
 // notPorted is the reason a case is left out, when there is one. Each is
 // counted and named in the report: nothing is left out without a word.
 func notPorted(testCase TestCase) string {
-	if testCase.Config != nil && len(testCase.Config.AllowedRegistries) > 0 {
-		return "sets allowedRegistries for itself, and the template writes one configuration a rule " +
-			"(https://github.com/forkcloser/godolint/issues/130); DL3026's cases are hand rows meanwhile"
-	}
-
 	if issue, known := failing[testCase.RuleCode][testCase.Name]; known {
 		return "godolint does not pass it (" + issue + ")"
 	}
@@ -233,6 +236,46 @@ func escapeBackticks(s string) string {
 	return strings.ReplaceAll(s, "`", "` + \"`\" + `")
 }
 
+// configLiteral is a configuration as Go writes it: a pointer to a
+// config.Config with the fields the spec sets. gofmt lays it out.
+func configLiteral(cfg *HadolintConfig) string {
+	var out strings.Builder
+
+	out.WriteString("&config.Config{\n")
+
+	if len(cfg.LabelSchema) > 0 {
+		out.WriteString("LabelSchema: map[string]config.LabelType{\n")
+
+		for _, label := range slices.Sorted(maps.Keys(cfg.LabelSchema)) {
+			fmt.Fprintf(&out, "%q: config.LabelType%s,\n", label, goLabelType(cfg.LabelSchema[label]))
+		}
+
+		out.WriteString("},\n")
+	}
+
+	if cfg.StrictLabels {
+		out.WriteString("StrictLabels: true,\n")
+	}
+
+	if len(cfg.AllowedRegistries) > 0 {
+		out.WriteString("AllowedRegistries: []string{")
+
+		for idx, registry := range cfg.AllowedRegistries {
+			if idx > 0 {
+				out.WriteString(", ")
+			}
+
+			out.WriteString(strconv.Quote(registry))
+		}
+
+		out.WriteString("},\n")
+	}
+
+	out.WriteString("}")
+
+	return out.String()
+}
+
 // goLabelType maps Haskell LabelType names to Go LabelType names.
 func goLabelType(haskellType string) string {
 	// Map Haskell type names to Go type names (handle acronym casing differences)
@@ -273,7 +316,8 @@ func nameCases(cases []TestCase) {
 }
 
 // sameConfig reports whether every case runs under one configuration: the
-// spec's own, or none.
+// spec's own, or none. Two bindings of `?config` are two configurations,
+// whatever they hold.
 func sameConfig(cases []TestCase) bool {
 	for _, testCase := range cases {
 		if testCase.Config != cases[0].Config {
@@ -284,16 +328,14 @@ func sameConfig(cases []TestCase) bool {
 	return true
 }
 
+// configured reports whether any case has a configuration.
+func configured(cases []TestCase) bool {
+	return slices.ContainsFunc(cases, func(testCase TestCase) bool { return testCase.Config != nil })
+}
+
 func generateTestFile(ruleCode string, cases []TestCase) error {
 	if len(cases) == 0 {
 		return fmt.Errorf("%w: no case to write", ErrTestGeneration)
-	}
-
-	if !sameConfig(cases) {
-		return fmt.Errorf(
-			"%w: cases under different configurations, which the template does not write",
-			ErrTestGeneration,
-		)
 	}
 
 	// Sort test cases by name for consistent output
@@ -306,7 +348,7 @@ func generateTestFile(ruleCode string, cases []TestCase) error {
 import (
 	"testing"
 
-{{if .Config}}	"github.com/forkcloser/godolint/internal/config"
+{{if .Configured}}	"github.com/forkcloser/godolint/internal/config"
 {{end}}	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/rules"
 	"github.com/forkcloser/godolint/internal/testutils"
@@ -320,24 +362,23 @@ import (
 func Test{{.RuleCode}}(t *testing.T) {
 	t.Parallel()
 
-{{if .Config}}	cfg := &config.Config{
-{{if .Config.LabelSchema}}		LabelSchema: map[string]config.LabelType{
-{{range $key, $val := .Config.LabelSchema}}			"{{$key}}": config.LabelType{{goLabelType $val}},
-{{end}}		},
-{{end}}{{if .Config.StrictLabels}}		StrictLabels: true,
-{{end}}	}
+{{if .Shared}}{{if .Config}}	cfg := {{configLiteral .Config}}
 	allRules := []rule.Rule{
 		rules.{{.RuleCode}}WithConfig(cfg),
 	}
 {{else}}	allRules := []rule.Rule{
 		rules.{{.RuleCode}}(),
 	}
-{{end}}{{range .TestCases}}
+{{end}}{{end}}{{range .TestCases}}
 	t.Run(
 		{{.Name | printf "%q"}},
 		func(t *testing.T) {
 			t.Parallel()
-
+{{if not $.Shared}}
+			allRules := []rule.Rule{
+				rules.{{.RuleCode}}{{if .Config}}WithConfig({{configLiteral .Config}}){{else}}(){{end}},
+			}
+{{end}}
 			dockerfile := ` + "`" + `{{.Dockerfile | escapeBackticks}}` + "`" + `
 			violations := testutils.{{if .OnBuild}}LintDockerfileOnBuild{{else}}LintDockerfile{{end}}(dockerfile, allRules)
 {{if .ShouldFail}}
@@ -352,7 +393,7 @@ func Test{{.RuleCode}}(t *testing.T) {
 
 	funcMap := template.FuncMap{
 		"escapeBackticks": escapeBackticks,
-		"goLabelType":     goLabelType,
+		"configLiteral":   configLiteral,
 	}
 
 	tpl, err := template.New("test").Funcs(funcMap).Parse(tmpl)
@@ -360,10 +401,29 @@ func Test{{.RuleCode}}(t *testing.T) {
 		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 	}
 
-	filename := strings.ToLower(ruleCode) + "_test.go"
+	data := RuleTests{
+		RuleCode:   ruleCode,
+		TestCases:  cases,
+		Shared:     sameConfig(cases),
+		Config:     cases[0].Config,
+		Configured: configured(cases),
+	}
+
+	var written bytes.Buffer
+
+	if err = tpl.Execute(&written, data); err != nil {
+		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
+	}
+
+	// gofmt lays out what the template wrote: a configuration is as deep as
+	// the place it is written at.
+	formatted, err := format.Source(written.Bytes())
+	if err != nil {
+		return fmt.Errorf("%w: the test file written is not Go: %w", ErrTestGeneration, err)
+	}
 
 	// #nosec G304
-	outputFile, err := os.Create(filename)
+	outputFile, err := os.Create(strings.ToLower(ruleCode) + "_test.go")
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 	}
@@ -372,14 +432,7 @@ func Test{{.RuleCode}}(t *testing.T) {
 		_ = outputFile.Close()
 	}()
 
-	data := RuleTests{
-		RuleCode:  ruleCode,
-		TestCases: cases,
-		Config:    cases[0].Config,
-	}
-
-	err = tpl.Execute(outputFile, data)
-	if err != nil {
+	if _, err = outputFile.Write(formatted); err != nil {
 		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 	}
 

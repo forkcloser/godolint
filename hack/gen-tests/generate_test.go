@@ -124,3 +124,121 @@ func TestGenerateStopsOnAFailingEntryWithNoCase(t *testing.T) {
 		t.Fatalf("generate = %v; want it to stop on the entry that names no case", err)
 	}
 }
+
+// TestGenerateWritesEachCaseItsConfiguration: when the cases of a rule do
+// not run under one configuration, each is written with its own: the rule
+// built from what its `it` binds, or the plain rule for a case under none.
+//
+//nolint:paralleltest // workspace changes the working directory
+func TestGenerateWritesEachCaseItsConfiguration(t *testing.T) {
+	specDir := workspace(t, map[string]string{
+		"DL3026Spec.hs": "    it \"under none\" $ ruleCatchesNot \"DL3026\" \"FROM a.com/one\"\n" +
+			"    it \"under two registries\" $ do\n" +
+			"      let ?config = def { allowedRegistries = [\"x.com\", \"*.random.com\"] }\n" +
+			"      ruleCatchesNot \"DL3026\" \"FROM x.com/two\"\n" +
+			"    it \"under another\" $ do\n" +
+			"      let ?config = def { allowedRegistries = [\"docker.io\"] }\n" +
+			"      ruleCatches \"DL3026\" \"FROM x.com/three\"\n",
+	}, "DL3026")
+
+	var report strings.Builder
+	if err := generate(specDir, &report); err != nil {
+		t.Fatalf("generate: %v\n%s", err, report.String())
+	}
+
+	if !strings.Contains(report.String(), "Total test cases extracted: 3\n") ||
+		strings.Contains(report.String(), "Not ported") {
+		t.Errorf("the report does not have the three cases generated and none left:\n%s", report.String())
+	}
+
+	written, err := os.ReadFile("dl3026_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// What stands before the first case is shared by all of them: no rule
+	// may be built there.
+	cases := strings.Split(string(written), "t.Run(")
+	if len(cases) != 4 {
+		t.Fatalf("dl3026_test.go holds %d cases, want 3:\n%s", len(cases)-1, written)
+	}
+
+	if !strings.Contains(cases[0], `"github.com/forkcloser/godolint/internal/config"`) ||
+		strings.Contains(cases[0], "allRules") {
+		t.Errorf("above the cases: want the config import and no rule:\n%s", cases[0])
+	}
+
+	// The cases are written in the order of their names.
+	for idx, want := range []struct {
+		name, rule, dockerfile string
+	}{
+		{"under another", `rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"docker.io"},
+				}),`, "FROM x.com/three"},
+		{"under none", "rules.DL3026(),", "FROM a.com/one"},
+		{"under two registries", `rules.DL3026WithConfig(&config.Config{
+					AllowedRegistries: []string{"x.com", "*.random.com"},
+				}),`, "FROM x.com/two"},
+	} {
+		got := cases[idx+1]
+
+		if !strings.Contains(got, `"`+want.name+`"`) || !strings.Contains(got, want.dockerfile) {
+			t.Errorf("case %d is not %q on %q:\n%s", idx+1, want.name, want.dockerfile, got)
+		}
+
+		if !strings.Contains(got, want.rule) || strings.Count(got, "rules.DL3026") != 1 {
+			t.Errorf("%q: want the one rule\n%s\ngot:\n%s", want.name, want.rule, got)
+		}
+	}
+}
+
+// TestGenerateWritesASharedConfigurationOnce: when every case of a rule runs
+// under one configuration, it is written once, above the cases, with every
+// field the spec sets, and no case builds a rule of its own.
+//
+//nolint:paralleltest // workspace changes the working directory
+func TestGenerateWritesASharedConfigurationOnce(t *testing.T) {
+	specDir := workspace(t, map[string]string{
+		"DL3049Spec.hs": "    let ?config = def { labelSchema = Map.fromList " +
+			"[(\"version\", Rule.SemVer), (\"url\", Url)], strictLabels = True }\n" +
+			"    it \"one\" $ ruleCatches \"DL3049\" \"FROM a\"\n" +
+			"    it \"two\" $ ruleCatchesNot \"DL3049\" \"FROM b\"\n",
+	}, "DL3049")
+
+	var report strings.Builder
+	if err := generate(specDir, &report); err != nil {
+		t.Fatalf("generate: %v\n%s", err, report.String())
+	}
+
+	written, err := os.ReadFile("dl3049_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := strings.Split(string(written), "t.Run(")
+	if len(cases) != 3 {
+		t.Fatalf("dl3049_test.go holds %d cases, want 2:\n%s", len(cases)-1, written)
+	}
+
+	const shared = `	cfg := &config.Config{
+		LabelSchema: map[string]config.LabelType{
+			"url":     config.LabelTypeURL,
+			"version": config.LabelTypeSemVer,
+		},
+		StrictLabels: true,
+	}
+	allRules := []rule.Rule{
+		rules.DL3049WithConfig(cfg),
+	}
+`
+
+	if !strings.Contains(cases[0], shared) {
+		t.Errorf("above the cases: want\n%s\ngot:\n%s", shared, cases[0])
+	}
+
+	for _, got := range cases[1:] {
+		if strings.Contains(got, "allRules :=") || strings.Contains(got, "config.Config") {
+			t.Errorf("a case builds a rule of its own under a shared configuration:\n%s", got)
+		}
+	}
+}

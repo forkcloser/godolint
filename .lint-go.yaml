@@ -47,3 +47,9 @@ golangci:
               - github.com/alecthomas/kong
               - github.com/mycophonic/primordium
               - go.yaml.in/yaml/v4
+              # Not a dependency. depguard checks one entry per import, the last
+              # that sorts at or before it: with go.yaml.in/… allowed, that
+              # entry is the one it finds for the standard library's go/…
+              # packages, and it refuses them (go/format, in hack/gen-tests).
+              # This entry sorts after it.
+              - go/
