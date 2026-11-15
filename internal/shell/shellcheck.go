@@ -65,11 +65,22 @@ type BinaryShellchecker struct {
 	// script runs from a temp dir, so a repository's .shellcheckrc would
 	// never be found. Requires shellcheck >= 0.10.0.
 	RCFile string
+
+	// Exclude is the checks shellcheck is told to leave out (--exclude).
+	// NewBinaryShellchecker sets the three hadolint leaves out.
+	Exclude []string
+}
+
+// DefaultExclude returns the checks hadolint has shellcheck leave out:
+// SC2187 (ash is not a shell it supports), SC1090 and SC1091 (a sourced file
+// it cannot follow).
+func DefaultExclude() []string {
+	return []string{"SC2187", "SC1090", "SC1091"}
 }
 
 // NewBinaryShellchecker creates a shellchecker that uses the shellcheck binary.
 func NewBinaryShellchecker() *BinaryShellchecker {
-	return &BinaryShellchecker{}
+	return &BinaryShellchecker{Exclude: DefaultExclude()}
 }
 
 // shellcheckOutput represents the JSON output from shellcheck.
@@ -143,16 +154,14 @@ func (c *BinaryShellchecker) run(fullScript string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	// Run shellcheck with JSON output
-	// Exclude codes like hadolint does:
-	// - SC2187: ash shell not supported warning
-	// - SC1090: can't follow sourced files (requires shell directives)
-	// - SC1091: can't follow sourced files (requires shell directives)
 	args := []string{
 		"--format=json",
-		"--exclude=SC2187,SC1090,SC1091",
 		"--severity=style", // Minimum severity (matches hadolint)
 	}
+	if len(c.Exclude) > 0 {
+		args = append(args, "--exclude="+strings.Join(c.Exclude, ","))
+	}
+
 	if c.RCFile != "" {
 		args = append(args, "--rcfile="+c.RCFile)
 	}

@@ -36,12 +36,14 @@ golangci:
       depguard:
         rules:
           main:
-            # The four dependencies this linter is built on: the Dockerfile
+            # The five dependencies this linter is built on: the Dockerfile
             # parser it shares with buildkit, the shell parser it hands RUN
-            # commands to, the CLI framework, and the house application
-            # toolkit. Everything else stays the baseline's $gostd.
+            # commands to, the CLI framework, the house application toolkit,
+            # and the YAML parser hadolint's configuration file is read
+            # with. Everything else stays the baseline's $gostd.
             allow:
               - github.com/moby/buildkit
               - mvdan.cc/sh/v3/syntax
               - github.com/alecthomas/kong
               - github.com/mycophonic/primordium
+              - go.yaml.in/yaml/v4

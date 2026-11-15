@@ -71,6 +71,56 @@ godolint --shellcheck-rcfile .shellcheckrc Dockerfile
 godolint --log-level debug Dockerfile
 ```
 
+### Configuration
+
+godolint takes hadolint's settings, under hadolint's flags and from hadolint's own configuration file:
+
+```bash
+# Give a rule's violations another severity (--error, --warning, --info, --style)
+godolint --error DL3006 --style DL3059 Dockerfile
+
+# Exit 1 only for a violation of this severity or a graver one (default: info)
+godolint --failure-threshold warning Dockerfile
+
+# Never exit 1 for a violation
+godolint --no-fail Dockerfile
+
+# The registries images may come from (DL3026)
+godolint --trusted-registry docker.io --trusted-registry '*.example.com' Dockerfile
+
+# The labels every image must carry and how each is written (DL3049, DL3051 to
+# DL3056, DL3058), and no other label (DL3050)
+godolint --require-label maintainer:email --require-label version:semver --strict-labels Dockerfile
+
+# A configuration file, and which one is used said on stderr
+godolint --config .hadolint.yaml --verbose Dockerfile
+```
+
+```yaml
+# .hadolint.yaml
+ignored:
+  - DL3008
+override:
+  error:
+    - DL3006
+  style:
+    - DL3059
+trustedRegistries:
+  - docker.io
+  - "*.example.com"
+label-schema:
+  maintainer: email # text, url, spdx, hash, rfc3339, semver or email
+  version: semver
+strict-labels: true
+disable-ignore-pragma: false
+failure-threshold: warning # error, warning, info, style, ignore or none
+no-fail: false
+```
+
+Without `--config`, the file used is the first that exists of `.hadolint.yaml` and `.hadolint.yml` in the working directory; `hadolint.yaml` and `hadolint.yml` in `$XDG_CONFIG_HOME` (or `~/.config`); those two, `config.yaml` and `config.yml` in `~/.hadolint`; `.hadolint.yaml` and `.hadolint.yml` in the home. On Windows the three directories are `%APPDATA%`, `%APPDATA%\hadolint` and `Documents` under the user's profile. The file and the command line add up as in hadolint: a list is the file's and the command line's together, a switch is on when either turns it on, the failure threshold is the command line's when it gives one, and a label both name keeps the file's type. A code given several severities gets the gravest.
+
+A file is obeyed whole or not at all, where hadolint lints with its defaults when it cannot take one. A key hadolint does not have is an error naming it. So are a label type or a threshold that is not one, a label left with no type, and a `format` or `formats` other than `json`, the one format godolint writes. `no-color` is accepted: the JSON has no colour. hadolint's environment variables (`HADOLINT_IGNORE`, `HADOLINT_FAILURE_THRESHOLD` and the others, `NO_COLOR`) are not read.
+
 ### Ignore pragmas
 
 A Dockerfile silences rules with hadolint's pragmas, in a comment:
@@ -264,7 +314,32 @@ sdk.New(sdk.WithDisabledRules("DL3007", "DL3008"))
 
 // WithShellcheck - Enable shellcheck integration
 sdk.New(sdk.WithShellcheck())
+
+// WithShellcheckExclusions - The checks shellcheck leaves out, in place of
+// SC2187, SC1090 and SC1091; with no code, none
+sdk.New(sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2187")))
+
+// WithSeverity - Give the violations of a code another severity
+sdk.New(sdk.WithSeverity(sdk.SeverityError, "DL3006", "SC2086"))
+
+// WithLabelSchema - The labels an image must carry, and how each is written
+// (DL3049, DL3051 to DL3056, DL3058)
+sdk.New(sdk.WithLabelSchema(map[string]sdk.LabelType{
+    "maintainer":                       sdk.LabelEmail,
+    "org.opencontainers.image.version": sdk.LabelSemVer,
+}))
+
+// WithStrictLabels - A label the schema does not name is a violation (DL3050)
+sdk.New(sdk.WithStrictLabels())
+
+// WithTrustedRegistries - The registries an image may come from (DL3026)
+sdk.New(sdk.WithTrustedRegistries("docker.io", "*.example.com"))
+
+// WithDisableIgnorePragma - Read no `# hadolint ignore=` pragma
+sdk.New(sdk.WithDisableIgnorePragma())
 ```
+
+These are hadolint's settings under hadolint's meanings: `ignored`, `override`, `label-schema` (the types `text`, `url`, `spdx`, `hash`, `rfc3339`, `semver`, `email`), `strict-labels`, `trustedRegistries` and `disable-ignore-pragma`. A code given to `WithDisabledRules` or `WithSeverity` may be one shellcheck reports (`SC2086`). A code given several severities gets the gravest, and a disabled code stays disabled whatever severity it is given. An option given a value it does not take (a label type or a severity that is none of the constants) makes `Lint` return a `*sdk.ConfigError`.
 
 ### Rule Sets
 
@@ -292,13 +367,14 @@ for _, info := range sdk.Rules() {
 info, ok := sdk.Rule("DL3006")
 ```
 
-A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has, and its `Message` in hadolint's words. A rule at `SeverityIgnore` (DL1001, DL3057) is off: its violations never reach a `Result`. A violation's message is its rule's, but for a rule about a label, which says `<label>` where the violation names the label (``Label `<label>` is missing.``); any other name in angle brackets (`<package>`, `<version>`) is the violation's text too.
+A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has unless `WithSeverity` gives the code another, and its `Message` in hadolint's words. A rule at `SeverityIgnore` (DL1001, DL3057) is off: its violations never reach a `Result` unless `WithSeverity` gives it a severity. A violation's message is its rule's, but for a rule about a label, which says `<label>` where the violation names the label (``Label `<label>` is missing.``); any other name in angle brackets (`<package>`, `<version>`) is the violation's text too.
 
 ### Typed Errors
 
 ```go
 *sdk.ParseError    // Dockerfile parsing failed
 *sdk.RuleError     // Rule execution failed
+*sdk.ConfigError   // An option was given a value it does not take
 ```
 
 ### Output Format
@@ -323,8 +399,8 @@ godolint outputs JSON arrays of violations:
 ```
 
 Exit codes:
-- `0`: No violations
-- `1`: Violations found — or a usage or runtime error, reported on stderr with nothing on stdout
+- `0`: No violation at the failure threshold or graver. The threshold is `info` unless `--failure-threshold` or the configuration file names another, as in hadolint: a run whose violations are all of the `style` severity exits 0, with the violations on stdout. With `--no-fail`, no violation makes the exit status 1.
+- `1`: A violation at the failure threshold or graver — or a usage or runtime error (a file that cannot be read or parsed, a configuration that cannot be obeyed), reported on stderr with nothing on stdout, whatever `--no-fail` says
 
 ## Architecture
 

@@ -13,8 +13,30 @@ const (
 	// SeverityStyle indicates a style preference.
 	SeverityStyle Severity = "style"
 	// SeverityIgnore is the severity of a rule that is off: it runs, and its
-	// violations never reach a Result. Only a RuleInfo carries it.
+	// violations never reach a Result unless WithSeverity gives its code
+	// another. Only a RuleInfo carries it.
 	SeverityIgnore Severity = "ignore"
+)
+
+// LabelType is how the value of a label of the schema is written, under the
+// names hadolint's configuration gives the types.
+type LabelType string
+
+const (
+	// LabelText is any text.
+	LabelText LabelType = "text"
+	// LabelURL is a URL.
+	LabelURL LabelType = "url"
+	// LabelSPDX is an SPDX license identifier.
+	LabelSPDX LabelType = "spdx"
+	// LabelHash is a git hash.
+	LabelHash LabelType = "hash"
+	// LabelRFC3339 is a time as RFC 3339 writes it.
+	LabelRFC3339 LabelType = "rfc3339"
+	// LabelSemVer is a semantic version.
+	LabelSemVer LabelType = "semver"
+	// LabelEmail is an email address as RFC 5322 writes it.
+	LabelEmail LabelType = "email"
 )
 
 // RuleInfo describes a rule, as Rules and Rule return it.
@@ -23,7 +45,7 @@ type RuleInfo struct {
 	// rules share one.
 	Code string `json:"code"`
 	// Severity is the severity the rule declares, and the Severity of every
-	// Violation it reports.
+	// Violation it reports unless WithSeverity gives its code another.
 	Severity Severity `json:"severity"`
 	// Message is the rule's description, in hadolint's words, and the Message
 	// of every Violation it reports, but for a rule about a label: its Message
