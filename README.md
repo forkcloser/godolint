@@ -45,15 +45,8 @@ go get github.com/forkcloser/godolint
 # Lint a Dockerfile
 godolint Dockerfile
 
-# Output: JSON array of violations
-# [
-#   {
-#     "Code": "DL3007",
-#     "Severity": "warning",
-#     "Message": "Using latest is prone to errors if the image will ever update",
-#     "Line": 1
-#   }
-# ]
+# Output: a JSON array of violations on stdout, [] when there is none
+# [{"file":"Dockerfile","line":1,"column":1,"level":"warning","code":"DL3007","message":"Using latest is prone to errors if the image will ever update. Pin the version explicitly to a release tag"}]
 
 # Ignore specific rules
 godolint --ignore DL3006 --ignore SC2050 Dockerfile
@@ -379,24 +372,34 @@ A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has
 
 ### Output Format
 
-godolint outputs JSON arrays of violations:
+The command writes hadolint's `json` format and no other: one array on stdout, on one line, with an object for each violation, and `[]` when there is none. Indented here:
 
 ```json
 [
   {
-    "Code": "DL3007",
-    "Severity": "warning",
-    "Message": "Using latest is prone to errors if the image will ever update",
-    "Line": 1
+    "file": "Dockerfile",
+    "line": 2,
+    "column": 1,
+    "level": "error",
+    "code": "DL3000",
+    "message": "Use absolute WORKDIR"
   },
   {
-    "Code": "DL3000",
-    "Severity": "error",
-    "Message": "Use absolute WORKDIR",
-    "Line": 5
+    "file": "Dockerfile",
+    "line": 1,
+    "column": 1,
+    "level": "warning",
+    "code": "DL3007",
+    "message": "Using latest is prone to errors if the image will ever update. Pin the version explicitly to a release tag"
   }
 ]
 ```
+
+`file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`.
+
+There is no `--format` and no `--output`: hadolint's other formats (`tty`, its default, `checkstyle`, `codacy`, `codeclimate`, `gitlab_codeclimate`, `gnu`, `junit`, `sarif`, `sonarqube`) and its output file are not offered, and a configuration file that asks for one of them is refused. A caller that wants another shape reads the JSON.
+
+In the SDK, a `Violation` marshals as `code`, `severity`, `message` and `line`.
 
 Exit codes:
 - `0`: No violation at the failure threshold or graver. The threshold is `info` unless `--failure-threshold` or the configuration file names another, as in hadolint: a run whose violations are all of the `style` severity exits 0, with the violations on stdout. With `--no-fail`, no violation makes the exit status 1.
@@ -558,11 +561,7 @@ with `go install github.com/forkcloser/godolint/cmd/godolint@vX.Y.Z`.
 
 ## Limitations
 
-- The command writes JSON only, and neither it nor the SDK takes a
-  configuration: the configurable rules (DL3026's allowed registries,
-  DL3049 to DL3056's label schema) run on their defaults. Output formats:
-  https://github.com/forkcloser/godolint/issues/127; configuration:
-  https://github.com/forkcloser/godolint/issues/125.
+- The command writes JSON only: see [Output Format](#output-format).
 - Quote handling differs slightly from hadolint (buildkit includes quotes in
   values).
 
