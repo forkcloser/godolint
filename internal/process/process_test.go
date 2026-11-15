@@ -74,3 +74,80 @@ func TestRunAppliesARuleInsideOnBuildAsHadolintComposesIt(t *testing.T) {
 		}
 	}
 }
+
+// counted is a rule that counts the instructions it is shown, and reports
+// one failure under each of its codes once they are all read.
+type counted struct {
+	code    rule.Code
+	reports []rule.Code
+	shown   *int
+}
+
+func (r counted) Code() rule.Code        { return r.code }
+func (counted) Severity() rule.Severity  { return rule.Info }
+func (counted) Message() string          { return "" }
+func (counted) InitialState() rule.State { return rule.EmptyState("") }
+
+func (r counted) Check(_ int, state rule.State, _ syntax.Instruction) rule.State {
+	*r.shown++
+
+	return state
+}
+
+func (r counted) Finalize(state rule.State) rule.State {
+	for _, code := range r.reports {
+		state = state.AddFailure(rule.CheckFailure{Code: code, Line: 1})
+	}
+
+	return state
+}
+
+// TestRunDoesNotRunAnIgnoredRule: a rule whose code is ignored is shown no
+// instruction, so it costs nothing and does nothing; a failure under an
+// ignored code is dropped whichever rule reports it, and that rule, whose
+// own code is not ignored, still runs.
+func TestRunDoesNotRunAnIgnoredRule(t *testing.T) {
+	t.Parallel()
+
+	instructions, err := parser.NewBuildkitParser().Parse([]byte("FROM a\nRUN b\nRUN c\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, tc := range map[string]struct {
+		ignored      []rule.Code
+		off, on, sub int
+		want         string
+	}{
+		"nothing ignored":             {nil, 3, 3, 3, "DL0001 DL0002 SC1 SC2"},
+		"a rule's code":               {[]rule.Code{"DL0001"}, 0, 3, 3, "DL0002 SC1 SC2"},
+		"a code another rule reports": {[]rule.Code{"SC1"}, 3, 3, 3, "DL0001 DL0002 SC2"},
+		"both":                        {[]rule.Code{"DL0001", "SC1", "SC2"}, 0, 3, 3, "DL0002"},
+		"the reporting rule's code":   {[]rule.Code{"SHELLCHECK"}, 3, 3, 0, "DL0001 DL0002"},
+	} {
+		var off, on, sub int
+
+		ignored := map[rule.Code]bool{}
+		for _, code := range tc.ignored {
+			ignored[code] = true
+		}
+
+		var got []string
+		for _, failure := range process.NewProcessor([]rule.Rule{
+			counted{code: "DL0001", reports: []rule.Code{"DL0001"}, shown: &off},
+			counted{code: "DL0002", reports: []rule.Code{"DL0002"}, shown: &on},
+			counted{code: "SHELLCHECK", reports: []rule.Code{"SC1", "SC2"}, shown: &sub},
+		}).WithIgnored(ignored).Run(instructions) {
+			got = append(got, string(failure.Code))
+		}
+
+		if strings.Join(got, " ") != tc.want {
+			t.Errorf("%s: reported %q, want %q", name, got, tc.want)
+		}
+
+		if off != tc.off || on != tc.on || sub != tc.sub {
+			t.Errorf("%s: the rules were shown %d, %d and %d instructions, want %d, %d and %d",
+				name, off, on, sub, tc.off, tc.on, tc.sub)
+		}
+	}
+}

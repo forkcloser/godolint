@@ -92,7 +92,9 @@ func (c *CLI) Run() error {
 	}
 
 	// One processor, every rule, reused across files.
-	processor := process.NewProcessor(ruleSet).WithDisableIgnorePragmas(settled.disableIgnorePragma)
+	processor := process.NewProcessor(ruleSet).
+		WithDisableIgnorePragmas(settled.disableIgnorePragma).
+		WithIgnored(settled.ignored)
 
 	allFailures, err := lintFiles(processor, c.Dockerfiles, settled)
 	if err != nil {
@@ -297,7 +299,7 @@ func lintFiles(processor *process.Processor, paths []string, settled *settings) 
 
 		slog.Debug("parsed Dockerfile", "file", dockerfilePath, "instructions", len(instructions))
 
-		failures := process.Settle(processor.Run(instructions), settled.overrides, settled.ignored)
+		failures := process.Settle(processor.Run(instructions), settled.overrides)
 		for i := range failures {
 			failures[i].File = dockerfilePath
 		}

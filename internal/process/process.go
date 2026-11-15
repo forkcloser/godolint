@@ -3,6 +3,8 @@
 package process
 
 import (
+	"slices"
+
 	"github.com/forkcloser/godolint/internal/pragma"
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/rules"
@@ -13,6 +15,7 @@ import (
 type Processor struct {
 	rules                []rule.Rule
 	disableIgnorePragmas bool
+	ignored              map[rule.Code]bool
 }
 
 // NewProcessor creates a new processor with the given rules.
@@ -31,6 +34,16 @@ func (p *Processor) WithDisableIgnorePragmas(disable bool) *Processor {
 	return p
 }
 
+// WithIgnored turns the codes off. A rule whose code is among them is not
+// run at all: it costs nothing, and what it would do on a Dockerfile is not
+// done. A failure with one of the codes is dropped, whichever rule reports
+// it: the shellcheck rule reports under shellcheck's codes, not its own.
+func (p *Processor) WithIgnored(codes map[rule.Code]bool) *Processor {
+	p.ignored = codes
+
+	return p
+}
+
 // Run processes a Dockerfile AST and returns all rule violations found.
 // Uses fold-style accumulation with state for each rule.
 // Ported from Hadolint's Rule fold pattern.
@@ -43,6 +56,10 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 	// ONBUILD RUN is no RUN of the stage it stands in. Any other rule never
 	// looks inside an ONBUILD.
 	for _, currentRule := range p.rules {
+		if p.ignored[currentRule.Code()] {
+			continue
+		}
+
 		state := currentRule.InitialState()
 
 		inOnBuild := rules.InOnBuild(currentRule)
@@ -70,23 +87,14 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 		allFailures = filterIgnored(allFailures, directives)
 	}
 
-	return allFailures
-}
-
-// WithoutIgnored drops the failures of Ignore severity, as hadolint's Lint
-// does after Process has run: a rule such as DL3057 reports them, a test
-// sees them, and a linter's output does not.
-func WithoutIgnored(failures []rule.CheckFailure) []rule.CheckFailure {
-	return Settle(failures, nil, nil)
+	return slices.DeleteFunc(allFailures, func(failure rule.CheckFailure) bool { return p.ignored[failure.Code] })
 }
 
 // Settle gives the failures of a run the severity overrides names for their
-// code, then drops those whose code is in ignored and those at the Ignore
-// severity, as hadolint's fixSeverity does. The override comes first, so a
-// rule that is off (DL3057) is reported once it is given a severity.
-func Settle(
-	failures []rule.CheckFailure, overrides map[rule.Code]rule.Severity, ignored map[rule.Code]bool,
-) []rule.CheckFailure {
+// code, then drops those at the Ignore severity, as hadolint's fixSeverity
+// does. The override comes first, so a rule that is off (DL3057) is reported
+// once it is given a severity.
+func Settle(failures []rule.CheckFailure, overrides map[rule.Code]rule.Severity) []rule.CheckFailure {
 	settled := []rule.CheckFailure{}
 
 	for _, failure := range failures {
@@ -94,7 +102,7 @@ func Settle(
 			failure.Severity = severity
 		}
 
-		if !ignored[failure.Code] && failure.Severity != rule.Ignore {
+		if failure.Severity != rule.Ignore {
 			settled = append(settled, failure)
 		}
 	}

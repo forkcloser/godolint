@@ -47,8 +47,10 @@ func WithRuleSet(set RuleSet) Option {
 // WithDisabledRules returns an option that disables specific rules by their codes.
 // Example: WithDisabledRules("DL3000", "DL3007").
 //
-// No violation with one of the codes reaches a Result, wherever the option
-// stands among the others, and a code shellcheck reports (SC####) is one too.
+// A rule with one of the codes is not run, and no violation with one of
+// them reaches a Result, wherever the option stands among the others. A code
+// shellcheck reports (SC####) is one too: shellcheck still runs, and its
+// findings under that code are dropped.
 func WithDisabledRules(codes ...string) Option {
 	return func(l *Linter) {
 		for _, code := range codes {
@@ -255,8 +257,10 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	}
 
 	// Run rules
-	processor := process.NewProcessor(l.rules).WithDisableIgnorePragmas(l.disableIgnorePragma)
-	failures := process.Settle(processor.Run(instructions), l.overrides, l.ignored)
+	processor := process.NewProcessor(l.rules).
+		WithDisableIgnorePragmas(l.disableIgnorePragma).
+		WithIgnored(l.ignored)
+	failures := process.Settle(processor.Run(instructions), l.overrides)
 
 	// Convert to SDK violations
 	violations := make([]Violation, len(failures))
