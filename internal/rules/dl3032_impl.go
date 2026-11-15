@@ -43,6 +43,5 @@ func isYumClean(cmd shell.Command) bool {
 		return true
 	}
 
-	// rm -rf /var/cache/yum/*
-	return shell.CmdHasAllArgs("rm", []string{recursiveForceFlag, "/var/cache/yum/*"}, cmd)
+	return shell.IsRecursiveRemoval([]string{"/var/cache/yum", "/var/cache/yum/", "/var/cache/yum/*"}, cmd)
 }

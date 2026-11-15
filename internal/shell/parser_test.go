@@ -169,6 +169,37 @@ func TestCmdHasAllArgs(t *testing.T) {
 	}
 }
 
+// TestIsRecursiveRemoval: an rm of a listed path counts under any spelling of
+// the recursive flag, and neither without one nor for another path or command.
+func TestIsRecursiveRemoval(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{"/var/cache/yum", "/var/cache/yum/*"}
+
+	for script, want := range map[string]bool{
+		"rm -rf /var/cache/yum/*":               true,
+		"rm -fr /var/cache/yum":                 true,
+		"rm -r -f /var/cache/yum":               true,
+		"rm -Rf /var/cache/yum":                 true,
+		"rm --recursive --force /var/cache/yum": true,
+		"rm -rf /tmp/x /var/cache/yum":          true,
+		"rm -f /var/cache/yum/*":                false,
+		"rm /var/cache/yum":                     false,
+		"rm -rf /var/cache/dnf":                 false,
+		"rm -rf /var/cache/yum/repos":           false,
+		"rmdir -r /var/cache/yum":               false,
+	} {
+		ps, err := shell.ParseShell(script)
+		if err != nil {
+			t.Fatalf("failed to parse %q: %v", script, err)
+		}
+
+		if got := shell.IsRecursiveRemoval(paths, ps.PresentCommands[0]); got != want {
+			t.Errorf("IsRecursiveRemoval(%q) = %t; want %t", script, got, want)
+		}
+	}
+}
+
 // TestBasename: a shell is known by the last path segment of its name.
 func TestBasename(t *testing.T) {
 	t.Parallel()

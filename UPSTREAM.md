@@ -28,6 +28,7 @@ tables below; commits to hadolint's own build, CI, docs and Haskell plumbing are
 | [`23779d4`](https://github.com/hadolint/hadolint/commit/23779d4) | `internal/rules/dl3068_impl.go` | DL3068: pecl packages installed at a version |
 | [`9d8ccb7`](https://github.com/hadolint/hadolint/commit/9d8ccb7) | `internal/rules/dl4006_impl.go` | DL4006: a stage built `FROM` a named stage inherits the pipefail its `SHELL` set, until a `SHELL` of its own; an image behind a registry is not a stage |
 | [`439b7b6`](https://github.com/hadolint/hadolint/commit/439b7b6) | `internal/rules/dl3064_impl.go` | DL3064: a name ending in `_FILE` holds a path, not a secret; `private` alone is no longer suspicious, `private_key` and `privatekey` are; eight names that are not secrets (`FACEBOOK_APP_ID`, `TRAVIS_OS_NAME` and the like) leave the list |
+| [`9495461`](https://github.com/hadolint/hadolint/commit/9495461) | `shell.IsRecursiveRemoval`, DL3009, DL3032, DL3040 | A cache is cleaned by any recursive `rm` of it (`-fr`, `-r -f`, `-R`, `--recursive`), of the directory, with or without a trailing slash, or of its contents; a non-recursive `rm` does not count |
 
 ## Not ported
 
