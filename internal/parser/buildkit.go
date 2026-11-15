@@ -197,9 +197,8 @@ func convertFrom(node *parser.Node) (*syntax.From, error) {
 		return nil, ErrFromMissingImage
 	}
 
-	baseImage := syntax.BaseImage{
-		Image: values[0],
-	}
+	image, tag, digest := splitReference(values[0])
+	baseImage := syntax.BaseImage{Image: image, Tag: tag, Digest: digest}
 
 	// Extract --platform flag if present
 	for _, flag := range node.Flags {
@@ -221,27 +220,51 @@ func convertFrom(node *parser.Node) (*syntax.From, error) {
 		}
 	}
 
-	// Parse image reference (image:tag@digest)
-	// The buildkit parser gives us the raw string, we need to parse it
-	imagePart := values[0]
-
-	// Check for digest (@sha256:...)
-	if atIdx := indexOf(imagePart, '@'); atIdx != -1 {
-		digest := imagePart[atIdx+1:]
-		baseImage.Digest = &digest
-		imagePart = imagePart[:atIdx]
-	}
-
-	// Check for tag (:tag)
-	if colonIdx := indexOf(imagePart, ':'); colonIdx != -1 {
-		tag := imagePart[colonIdx+1:]
-		baseImage.Tag = &tag
-		baseImage.Image = imagePart[:colonIdx]
-	}
-
 	return &syntax.From{
 		Image: baseImage,
 	}, nil
+}
+
+// splitReference splits the image of a FROM into its name (registry and port
+// included), its tag and its digest. The digest follows the first @; the tag
+// follows the last colon after the last slash, since a colon before a slash
+// is a registry's port. A ${...} expansion is opaque: the colon of its :-, a
+// slash or an @ in its default split nothing, and one left open runs to the
+// end.
+func splitReference(reference string) (name string, tag, digest *string) {
+	digestAt, tagAt, depth := -1, -1, 0
+
+	for i := 0; i < len(reference) && digestAt < 0; i++ {
+		switch char := reference[i]; {
+		case depth > 0 && char == '{':
+			depth++
+		case depth > 0 && char == '}':
+			depth--
+		case depth > 0:
+		case char == '{' && i > 0 && reference[i-1] == '$':
+			depth = 1
+		case char == '@':
+			digestAt = i
+		case char == '/':
+			tagAt = -1
+		case char == ':':
+			tagAt = i
+		}
+	}
+
+	name = reference
+
+	if digestAt >= 0 {
+		rest := name[digestAt+1:]
+		digest, name = &rest, name[:digestAt]
+	}
+
+	if tagAt >= 0 {
+		rest := name[tagAt+1:]
+		tag, name = &rest, name[:tagAt]
+	}
+
+	return name, tag, digest
 }
 
 // Helper to find index of character in string.
