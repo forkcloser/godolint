@@ -53,7 +53,6 @@ type HadolintConfig struct {
 // The issues of the cases godolint does not pass yet.
 const (
 	issueStages    = "https://github.com/forkcloser/godolint/issues/126"
-	issueOnBuild   = "https://github.com/forkcloser/godolint/issues/182"
 	issueYarnStage = "https://github.com/forkcloser/godolint/issues/185"
 )
 
@@ -64,10 +63,6 @@ const (
 //
 //nolint:gochecknoglobals // a constant table
 var failing = map[string]map[string]string{
-	"DL3009": {
-		"apt-get cleanup in stage image (ONBUILD)":                                          issueOnBuild,
-		"no warn apt-get cleanup in intermediate stage when stage not used later (ONBUILD)": issueOnBuild,
-	},
 	"DL3049": {
 		"don't warn: two stages, inheritance":                                       issueStages,
 		"not ok: single stage, no label":                                            issueStages,

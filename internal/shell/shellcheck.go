@@ -345,6 +345,12 @@ func (*ShellcheckRule) Code() rule.Code {
 	return "SHELLCHECK"
 }
 
+// InOnBuild says that the rule also reads the RUN an ONBUILD wraps, as
+// hadolint's does (`rule = scrule <> onbuild scrule`).
+func (*ShellcheckRule) InOnBuild() bool {
+	return true
+}
+
 // Severity returns the rule severity.
 func (*ShellcheckRule) Severity() rule.Severity {
 	// Shellcheck violations have their own severities
