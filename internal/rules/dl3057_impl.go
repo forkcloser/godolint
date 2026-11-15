@@ -1,6 +1,9 @@
 package rules
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/syntax"
 )
@@ -107,36 +110,39 @@ func (*DL3057Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 // markGood marks a stage and all its ancestors as good.
 func markGood(state dl3057State, stage stageID) dl3057State {
-	// Mark this stage as good
-	state.goodStages[stage] = true
-	delete(state.badStages, stage)
-
-	// Find and mark ancestors recursively
-	ancestors := findAncestors(state, stage)
-	for ancestor := range ancestors {
+	for ancestor := range ancestors(state.badStages, stage) {
 		state.goodStages[ancestor] = true
 		delete(state.badStages, ancestor)
 	}
 
+	state.goodStages[stage] = true
+	delete(state.badStages, stage)
+
 	return state
 }
 
-// findAncestors finds all ancestor stages recursively.
-func findAncestors(state dl3057State, stage stageID) map[stageID]bool {
-	ancestors := make(map[stageID]bool)
+// ancestors is the stages of bad the stage is built on, and those they are
+// built on in turn: hadolint's recurseGood. Each round looks only among the
+// stages no earlier round took. A stage with no alias is named by its image
+// and so is built on itself: looked for among all of bad again, it would be
+// found without end.
+func ancestors(bad map[stageID]bool, stage stageID) map[stageID]bool {
+	taken := map[stageID]bool{}
+	rest := map[stageID]bool{}
 
-	// Find stages in badStages that this stage inherits from
-	for badStage := range state.badStages {
-		if badStage.name == stage.src {
-			ancestors[badStage] = true
-			// Recursively find ancestors of this ancestor
-			for ancestorOfAncestor := range findAncestors(state, badStage) {
-				ancestors[ancestorOfAncestor] = true
-			}
+	for candidate := range bad {
+		if candidate.name == stage.src {
+			taken[candidate] = true
+		} else {
+			rest[candidate] = true
 		}
 	}
 
-	return ancestors
+	for _, parent := range slices.Collect(maps.Keys(taken)) {
+		maps.Copy(taken, ancestors(rest, parent))
+	}
+
+	return taken
 }
 
 // Finalize performs final checks after processing all instructions.
