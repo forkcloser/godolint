@@ -10,5 +10,5 @@ import "github.com/forkcloser/godolint/internal/rule"
 var DL3053Meta = rule.Meta{
 	Code:     "DL3053",
 	Severity: rule.Warning,
-	Message:  "Label `",
+	Message:  "Label `<label>` is not a valid time format - must conform to RFC3339.",
 }
