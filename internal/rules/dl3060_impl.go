@@ -104,24 +104,28 @@ func sameStage(left, right *syntax.BaseImage) bool {
 		same(left.Alias, right.Alias) && same(left.Platform, right.Platform)
 }
 
-// checkDL3060 passes a RUN with no yarn install, one whose yarn cache is a
-// mount, or one whose first yarn install comes before its first cache clean.
+// checkDL3060 passes a RUN with no yarn install, one that never cleans the
+// cache when the cache is a mount, and one whose first cache clean does not
+// come before its first yarn install. The mount excuses only the missing
+// clean: a clean that comes before the install is reported with it too.
 func checkDL3060(run *syntax.Run) bool {
 	parsed, err := shell.ParseShell(run.Command)
 	if err != nil {
 		return true
 	}
 
-	if firstCommand(parsed.PresentCommands, isYarnInstall) < 0 {
+	installAt := firstCommand(parsed.PresentCommands, isYarnInstall)
+	if installAt < 0 {
 		return true
 	}
 
-	if hasCacheOrTmpfsMount(run.Flags, ".cache/yarn") ||
-		hasCacheOrTmpfsMount(run.Flags, "/root/.cache/yarn") {
-		return true
+	cleanAt := firstCommand(parsed.PresentCommands, isYarnCacheClean)
+	if cleanAt < 0 {
+		return hasCacheOrTmpfsMount(run.Flags, ".cache/yarn") ||
+			hasCacheOrTmpfsMount(run.Flags, "/root/.cache/yarn")
 	}
 
-	return cleanFollowsInstall(parsed.PresentCommands, isYarnInstall, isYarnCacheClean)
+	return cleanAt >= installAt
 }
 
 func isYarnInstall(cmd shell.Command) bool {

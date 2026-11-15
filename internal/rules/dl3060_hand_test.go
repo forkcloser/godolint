@@ -74,3 +74,44 @@ func TestDL3060Hand(t *testing.T) {
 		})
 	}
 }
+
+// TestDL3060HandCache holds what hadolint's cases leave open about what makes
+// a RUN leave a cache: a mount excuses a clean that is missing, never one
+// that comes before the install, and the order is that of the first install
+// and the first clean.
+func TestDL3060HandCache(t *testing.T) {
+	t.Parallel()
+
+	const (
+		cache = "RUN --mount=type=cache,target=/root/.cache/yarn "
+		tmpfs = "RUN --mount=type=tmpfs,target=/root/.cache/yarn "
+	)
+
+	allRules := []rule.Rule{rules.DL3060()}
+
+	for _, tc := range []struct {
+		name string
+		run  string
+		fail bool
+	}{
+		{"a cache mount, no clean", cache + "yarn install", false},
+		{"a cache mount, the clean after the install", cache + "yarn install && yarn cache clean", false},
+		{"a cache mount, the clean before the install", cache + "yarn cache clean && yarn install", true},
+		{"a tmpfs mount, the clean before the install", tmpfs + "yarn cache clean && yarn install", true},
+		{"a mount elsewhere, the clean before the install", "RUN --mount=type=cache,target=/var/lib/foobar yarn cache clean && yarn install", true},
+		{"a clean before and after the install", "RUN yarn cache clean && yarn install && yarn cache clean", true},
+		{"a clean between two installs", "RUN yarn install one && yarn cache clean && yarn install two", false},
+		{"one command that installs and cleans", "RUN yarn install cache clean", false},
+		{"a clean and no install", "RUN yarn cache clean", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			violations := testutils.LintDockerfile("FROM node\n"+tc.run, allRules)
+
+			if failed := len(violations) != 0; failed != tc.fail {
+				t.Errorf("reported %v, want %v: %v", failed, tc.fail, violations)
+			}
+		})
+	}
+}
