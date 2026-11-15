@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
@@ -291,11 +292,74 @@ func convertRun(node *parser.Node) (*syntax.Run, error) {
 		command += n.Value
 	}
 
+	if len(node.Heredocs) > 0 {
+		command = heredocScript(command, node.Heredocs[0])
+	}
+
 	return &syntax.Run{
 		Command: command,
 		Flags:   node.Flags,
 		IsJSON:  node.Attributes != nil && node.Attributes["json"],
 	}, nil
+}
+
+// shells is the interpreters whose scripts are shell scripts.
+//
+//nolint:gochecknoglobals // a constant table
+var shells = map[string]bool{"sh": true, "bash": true, "ash": true, "dash": true, "ksh": true, "zsh": true}
+
+// heredocScript is the shell script of a RUN written with a heredoc, the
+// first one of its line. Where the heredoc is the whole command (RUN <<EOF),
+// the build runs its body, and the body is the script. Where a command comes
+// first (RUN cat <<EOF > /etc/motd), the body is that command's input and
+// the script is what stands before the heredoc, as hadolint's parser has it.
+// A body that names an interpreter of its own that is no shell (#!/usr/bin/env
+// python3) is run by it, and is no shell script.
+func heredocScript(command string, heredoc parser.Heredoc) string {
+	operator := regexp.MustCompile(`\d*<<-?\s*["']?` + regexp.QuoteMeta(heredoc.Name) + `["']?`)
+
+	span := operator.FindStringIndex(command)
+	if span == nil {
+		return command
+	}
+
+	if strings.TrimSpace(command[:span[0]]+command[span[1]:]) != "" {
+		return strings.TrimSpace(command[:span[0]])
+	}
+
+	body := heredoc.Content
+	if heredoc.Chomp {
+		body = parser.ChompHeredocContent(body)
+	}
+
+	if interpreter, named := shebang(body); named && !shells[interpreter] {
+		return ""
+	}
+
+	return strings.TrimSpace(body)
+}
+
+// shebang is the interpreter a script names on its first line, by its base
+// name, with env and busybox looked through: #!/usr/bin/env -S python3 -u is
+// python3, and #!/bin/busybox sh is sh.
+func shebang(script string) (string, bool) {
+	line, _, _ := strings.Cut(script, "\n")
+
+	words, isShebang := strings.CutPrefix(line, "#!")
+	if !isShebang {
+		return "", false
+	}
+
+	for word := range strings.FieldsSeq(words) {
+		name := word[strings.LastIndex(word, "/")+1:]
+		if name == "env" || name == "busybox" || strings.HasPrefix(name, "-") {
+			continue
+		}
+
+		return name, true
+	}
+
+	return "", true
 }
 
 func convertCopy(node *parser.Node) (*syntax.Copy, error) {
@@ -546,8 +610,18 @@ func convertOnBuild(node *parser.Node) (*syntax.OnBuild, error) {
 		return nil, ErrOnBuildMissingInstruction
 	}
 
+	// The bodies of the instruction's heredocs follow its line, each up to
+	// its delimiter; Original is the line alone.
+	var withBodies strings.Builder
+
+	withBodies.WriteString(innerText)
+
+	for _, heredoc := range node.Heredocs {
+		withBodies.WriteString("\n" + heredoc.Content + heredoc.Name)
+	}
+
 	// Parse the inner instruction as a complete Dockerfile
-	innerResult, err := parser.Parse(bytes.NewReader([]byte(innerText)))
+	innerResult, err := parser.Parse(strings.NewReader(withBodies.String()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ONBUILD inner instruction: %w", err)
 	}
