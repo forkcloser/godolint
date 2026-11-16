@@ -113,13 +113,11 @@ func (c *BinaryShellchecker) Check(script string, opts Opts) ([]rule.CheckFailur
 		return nil, nil
 	}
 
-	// Build complete script with shebang and exports
 	output, err := c.run(buildScript(script, opts))
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse JSON output
 	var scResults []shellcheckOutput
 
 	if len(output) > 0 {
@@ -240,7 +238,6 @@ func convertFindings(scResults []shellcheckOutput, opts Opts) []rule.CheckFailur
 func buildScript(runCommand string, opts Opts) string {
 	var build strings.Builder
 
-	// Add shebang from shell option
 	shebang := extractShell(opts.ShellName)
 	if shebang == "" {
 		shebang = "/bin/sh"
@@ -250,14 +247,12 @@ func buildScript(runCommand string, opts Opts) string {
 	_, _ = build.WriteString(shebang)
 	_, _ = build.WriteString("\n")
 
-	// Export environment variables
 	for key := range opts.EnvVars {
 		_, _ = build.WriteString("export ")
 		_, _ = build.WriteString(key)
 		_, _ = build.WriteString("=1\n")
 	}
 
-	// Add the actual RUN command
 	_, _ = build.WriteString(runCommand)
 
 	return build.String()
@@ -427,11 +422,10 @@ func (r *ShellcheckRule) Check(line int, state rule.State, instruction syntax.In
 			return state
 		}
 
-		// Run shellcheck on the command
 		violations, err := r.checker.Check(instr.Command, shState.opts)
 		if err != nil {
-			// Log error but don't fail the rule
-			// (matching hadolint behavior - shellcheck failures are not fatal)
+			// A shellcheck that fails is not fatal, as in hadolint; nothing
+			// records it.
 			return state
 		}
 

@@ -42,7 +42,6 @@ func ParseShell(script string) (*ParsedShell, error) {
 	// Add shebang to help parser
 	fullScript := "#!/bin/bash\n" + script
 
-	// Parse the script
 	r := strings.NewReader(fullScript)
 
 	file, err := syntax.NewParser().Parse(r, "")
@@ -50,7 +49,6 @@ func ParseShell(script string) (*ParsedShell, error) {
 		return nil, fmt.Errorf("failed to parse shell script: %w", err)
 	}
 
-	// Extract commands
 	commands := extractCommands(file)
 
 	return &ParsedShell{
@@ -139,7 +137,6 @@ func extractCommand(call *syntax.CallExpr) *Command {
 		}
 	}
 
-	// Extract all arguments with IDs
 	var allArgs []CmdPart
 
 	for i, arg := range words {
@@ -150,7 +147,6 @@ func extractCommand(call *syntax.CallExpr) *Command {
 		})
 	}
 
-	// Extract flags from arguments
 	flags := extractFlags(allArgs)
 
 	return &Command{
@@ -344,7 +340,6 @@ func extractFlags(args []CmdPart) []CmdPart {
 	var flags []CmdPart
 
 	for _, arg := range args {
-		// Skip special cases
 		if arg.Arg == "--" || arg.Arg == "-" {
 			continue
 		}
@@ -352,7 +347,6 @@ func extractFlags(args []CmdPart) []CmdPart {
 		// Long flags: --flag or --flag=value
 		if after, ok := strings.CutPrefix(arg.Arg, "--"); ok {
 			flagName := after
-			// Remove =value part if present
 			if idx := strings.IndexByte(flagName, '='); idx != -1 {
 				flagName = flagName[:idx]
 			}
@@ -398,7 +392,6 @@ func CmdHasArgs(expectedName string, expectedArgs []string, cmd Command) bool {
 		return false
 	}
 
-	// Check if any of the expected args are present
 	for _, expected := range expectedArgs {
 		for _, arg := range cmd.Arguments {
 			if arg.Arg == expected {
@@ -527,13 +520,11 @@ func GetArgs(cmd Command) []string {
 // GetArgsNoFlags returns arguments that are not flags or flag values.
 // Ported from Hadolint.Shell.getArgsNoFlags.
 func GetArgsNoFlags(cmd Command) []string {
-	// Get IDs of all flags
 	flagIDs := make(map[int]bool)
 	for _, flag := range cmd.Flags {
 		flagIDs[flag.ID] = true
 	}
 
-	// Return arguments whose IDs are not in flag IDs
 	var result []string
 
 	for _, arg := range cmd.Arguments {
@@ -644,11 +635,9 @@ func HasPipes(ps *ParsedShell) bool {
 		return false
 	}
 
-	// Walk the AST looking for pipe nodes
 	hasPipe := false
 
 	syntax.Walk(file, func(node syntax.Node) bool {
-		// Check for BinaryCmd with pipe operator
 		if bin, ok := node.(*syntax.BinaryCmd); ok {
 			// Op_Pipe is |, Op_PipeAll is |&
 			if bin.Op == syntax.Pipe || bin.Op == syntax.PipeAll {
@@ -673,7 +662,6 @@ func IsPipInstall(cmd Command) bool {
 		return slices.Contains(GetArgs(cmd), "install")
 	}
 
-	// Check for: python -m pip install
 	if strings.HasPrefix(cmd.Name, "python") {
 		return runsPipModuleInstall(GetArgs(cmd))
 	}
