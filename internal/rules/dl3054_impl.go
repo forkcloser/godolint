@@ -55,24 +55,17 @@ func (r *DL3054Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label that should be an SPDX identifier
-	for _, pair := range label.Pairs {
-		labelType, exists := r.cfg.LabelSchema[pair.Key]
-		if !exists || labelType != config.LabelTypeSPDX {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeSPDX }
 
-		// Validate SPDX identifier
-		if !isValidSPDX(pair.Value) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3054Meta.Code,
-				Severity: DL3054Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("Label `%s` is not a valid SPDX identifier.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+	for _, key := range failingLabels(label.Pairs, ofKind, isValidSPDX) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3054Meta.Code,
+			Severity: DL3054Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("Label `%s` is not a valid SPDX identifier.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state

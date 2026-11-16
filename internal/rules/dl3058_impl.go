@@ -55,24 +55,17 @@ func (r *DL3058Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label that should be an email
-	for _, pair := range label.Pairs {
-		labelType, exists := r.cfg.LabelSchema[pair.Key]
-		if !exists || labelType != config.LabelTypeEmail {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeEmail }
 
-		// Validate email
-		if !isValidEmail(pair.Value) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3058Meta.Code,
-				Severity: DL3058Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("Label `%s` is not a valid email format - must conform to RFC5322.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+	for _, key := range failingLabels(label.Pairs, ofKind, isValidEmail) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3058Meta.Code,
+			Severity: DL3058Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("Label `%s` is not a valid email format - must conform to RFC5322.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state
@@ -83,9 +76,15 @@ func (*DL3058Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 
-// isValidEmail checks if a string is a valid email address (RFC5322).
+// isValidEmail reports whether email is an address and nothing more:
+// john@example.com. A name with the address (John Doe <john@example.com>),
+// or the address in angle brackets alone, is a mailbox, which the parser
+// takes and the label's type does not.
 func isValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed == nil {
+		return false
+	}
 
-	return err == nil
+	return parsed.Name == "" && parsed.Address == email
 }

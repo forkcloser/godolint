@@ -55,24 +55,17 @@ func (r *DL3055Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label that should be a git hash
-	for _, pair := range label.Pairs {
-		labelType, exists := r.cfg.LabelSchema[pair.Key]
-		if !exists || labelType != config.LabelTypeGitHash {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeGitHash }
 
-		// Validate git hash: must be 7 or 40 hex characters
-		if !isValidGitHash(pair.Value) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3055Meta.Code,
-				Severity: DL3055Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("Label `%s` is not a valid git hash.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+	for _, key := range failingLabels(label.Pairs, ofKind, isValidGitHash) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3055Meta.Code,
+			Severity: DL3055Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("Label `%s` is not a valid git hash.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state

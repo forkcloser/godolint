@@ -55,24 +55,17 @@ func (r *DL3053Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label that should be RFC3339
-	for _, pair := range label.Pairs {
-		labelType, exists := r.cfg.LabelSchema[pair.Key]
-		if !exists || labelType != config.LabelTypeRFC3339 {
-			continue
-		}
+	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeRFC3339 }
 
-		// Validate RFC3339 timestamp
-		if !isValidRFC3339(pair.Value) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3053Meta.Code,
-				Severity: DL3053Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("Label `%s` is not a valid time format - must conform to RFC3339.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+	for _, key := range failingLabels(label.Pairs, ofKind, isValidRFC3339) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3053Meta.Code,
+			Severity: DL3053Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("Label `%s` is not a valid time format - must conform to RFC3339.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state

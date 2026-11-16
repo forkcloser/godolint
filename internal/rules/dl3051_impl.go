@@ -54,24 +54,21 @@ func (r *DL3051Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Check each label in the schema
-	for _, pair := range label.Pairs {
-		// Only validate if this label is in the schema
-		if _, exists := r.cfg.LabelSchema[pair.Key]; !exists {
-			continue
-		}
+	inSchema := func(key string) bool {
+		_, exists := r.cfg.LabelSchema[key]
 
-		// Check if value is empty
-		if pair.Value == "" {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3051Meta.Code,
-				Severity: DL3051Meta.Severity,
-				//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-				Message: fmt.Sprintf("label `%s` is empty.", pair.Key),
-				Line:    line,
-				Column:  1, // Hardcoded to 1 (matches hadolint)
-			})
-		}
+		return exists
+	}
+
+	for _, key := range failingLabels(label.Pairs, inSchema, func(value string) bool { return value != "" }) {
+		state = state.AddFailure(rule.CheckFailure{
+			Code:     DL3051Meta.Code,
+			Severity: DL3051Meta.Severity,
+			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+			Message: fmt.Sprintf("label `%s` is empty.", key),
+			Line:    line,
+			Column:  1, // Hardcoded to 1 (matches hadolint)
+		})
 	}
 
 	return state
