@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/forkcloser/godolint/internal/rule"
@@ -8,10 +10,12 @@ import (
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
-// dl3010State tracks copied archives and which ones get extracted.
+// dl3010State is the archives the current stage has copied, each under its
+// base name with the line of its COPY, and the lines of the COPYs whose
+// archive a RUN went on to unpack, in any stage.
 type dl3010State struct {
-	archives  map[string]int // map[basename]line - tracks copied archive files
-	extracted map[string]int // map[basename]line - tracks which archives were extracted
+	archives  map[string]int
+	extracted map[int]struct{}
 }
 
 // DL3010Rule checks for using COPY instead of ADD for archive extraction.
@@ -41,7 +45,7 @@ func (*DL3010Rule) Message() string {
 func (*DL3010Rule) InitialState() rule.State {
 	return rule.EmptyState(dl3010State{
 		archives:  make(map[string]int),
-		extracted: make(map[string]int),
+		extracted: make(map[int]struct{}),
 	})
 }
 
@@ -54,14 +58,19 @@ func (*DL3010Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Reset state for new stage
-		return rule.EmptyState(dl3010State{
-			archives:  make(map[string]int),
-			extracted: make(map[string]int),
-		})
+		// A stage starts with no file of the one before. What was found
+		// there stays found.
+		currentState.archives = make(map[string]int)
+
+		return state.ReplaceData(currentState)
 
 	case *syntax.Copy:
-		// Track archive files being copied
+		// An ADD reads the build context: it cannot stand for a COPY that
+		// reads another stage.
+		if inst.From != nil {
+			return state
+		}
+
 		destBase := basename(inst.Destination)
 
 		// If destination looks like an archive file, track its basename
@@ -91,8 +100,8 @@ func (*DL3010Rule) Check(line int, state rule.State, instruction syntax.Instruct
 				args := shell.GetArgsNoFlags(cmd)
 				for _, arg := range args {
 					base := basename(arg)
-					if _, tracked := currentState.archives[base]; tracked {
-						currentState.extracted[base] = currentState.archives[base] // Store original COPY line
+					if copied, tracked := currentState.archives[base]; tracked {
+						currentState.extracted[copied] = struct{}{}
 					}
 				}
 			}
@@ -110,8 +119,8 @@ func (*DL3010Rule) Finalize(state rule.State) rule.State {
 
 	finalState := state
 
-	// Add failures for all extracted archives
-	for _, line := range currentState.extracted {
+	// A COPY is reported once, however many of its archives are unpacked.
+	for _, line := range slices.Sorted(maps.Keys(currentState.extracted)) {
 		finalState = finalState.AddFailure(rule.CheckFailure{
 			Code:     DL3010Meta.Code,
 			Severity: DL3010Meta.Severity,
