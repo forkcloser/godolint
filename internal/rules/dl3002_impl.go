@@ -17,26 +17,13 @@ type dl3002State struct {
 
 // DL3002Rule checks that the last USER in each stage is not root.
 // Ported from Hadolint.Rule.DL3002.
-type DL3002Rule struct{}
+type DL3002Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3002 creates the rule for checking last USER should not be root.
 func DL3002() rule.Rule {
-	return &DL3002Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3002Rule) Code() rule.Code {
-	return DL3002Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3002Rule) Severity() rule.Severity {
-	return DL3002Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3002Rule) Message() string {
-	return DL3002Meta.Message
+	return &DL3002Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3002Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -92,19 +79,13 @@ func (*DL3002Rule) Check(line int, state rule.State, instruction syntax.Instruct
 // Finalize adds failures for all stages that end with a root USER.
 // Ported from markFailures in DL3002.hs.
 // Finalize performs final checks after processing all instructions.
-func (*DL3002Rule) Finalize(state rule.State) rule.State {
+func (r *DL3002Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3002State](state)
 
 	// Add failures for all stages with root users
 	finalState := state
 	for _, userLine := range currentState.rootUsers {
-		finalState = finalState.AddFailure(rule.CheckFailure{
-			Code:     DL3002Meta.Code,
-			Severity: DL3002Meta.Severity,
-			Message:  DL3002Meta.Message,
-			Line:     userLine,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		finalState = finalState.AddFailure(rule.Fail(r, userLine))
 	}
 
 	return finalState

@@ -11,36 +11,25 @@ import (
 
 // DL3052Rule checks that URL labels are valid.
 type DL3052Rule struct {
+	rule.StatefulRuleBase
+
 	cfg *config.Config
 }
 
 // DL3052 creates the rule for checking URL labels.
 func DL3052() rule.Rule {
 	return &DL3052Rule{
-		cfg: config.Default(),
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3052Meta),
+		cfg:              config.Default(),
 	}
 }
 
 // DL3052WithConfig creates the rule with custom configuration.
 func DL3052WithConfig(cfg *config.Config) rule.Rule {
 	return &DL3052Rule{
-		cfg: cfg,
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3052Meta),
+		cfg:              cfg,
 	}
-}
-
-// Code returns the rule code.
-func (*DL3052Rule) Code() rule.Code {
-	return DL3052Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3052Rule) Severity() rule.Severity {
-	return DL3052Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3052Rule) Message() string {
-	return DL3052Meta.Message
 }
 
 // InitialState returns the initial state for this rule.
@@ -58,21 +47,10 @@ func (r *DL3052Rule) Check(line int, state rule.State, instruction syntax.Instru
 	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeURL }
 
 	for _, key := range failingLabels(label.Pairs, ofKind, isValidURL) {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3052Meta.Code,
-			Severity: DL3052Meta.Severity,
-			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-			Message: fmt.Sprintf("Label `%s` is not a valid URL.", key),
-			Line:    line,
-			Column:  1, // Hardcoded to 1 (matches hadolint)
-		})
+		//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+		state = state.AddFailure(labelFailure(r, line, fmt.Sprintf("Label `%s` is not a valid URL.", key)))
 	}
 
-	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3052Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

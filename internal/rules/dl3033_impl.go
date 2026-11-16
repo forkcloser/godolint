@@ -12,26 +12,13 @@ import (
 // DL3033Rule checks that yum installs pinned versions. Ported from
 // Hadolint.Rule.DL3033: a version written through a variable is pinned when
 // the variable is an ENV of the stage or an ARG, which the rule tracks.
-type DL3033Rule struct{}
+type DL3033Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3033 creates the rule for yum version pinning.
 func DL3033() rule.Rule {
-	return &DL3033Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3033Rule) Code() rule.Code {
-	return DL3033Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3033Rule) Severity() rule.Severity {
-	return DL3033Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3033Rule) Message() string {
-	return DL3033Meta.Message
+	return &DL3033Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3033Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -41,16 +28,11 @@ func (*DL3033Rule) InitialState() rule.State {
 
 // Check records ENV, ARG and FROM, and fails a RUN whose packages or
 // modules are not all pinned.
-func (*DL3033Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	return checkPinnedVersions(DL3033Meta, line, state, instruction,
+func (r *DL3033Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+	return checkPinnedVersions(r, line, state, instruction,
 		func(vars versionVars, parsed *shell.ParsedShell) bool {
 			return yumPackagesPinned(vars, parsed) && yumModulesPinned(parsed)
 		})
-}
-
-// Finalize performs no final check.
-func (*DL3033Rule) Finalize(state rule.State) rule.State {
-	return state
 }
 
 func yumPackagesPinned(vars versionVars, parsed *shell.ParsedShell) bool {

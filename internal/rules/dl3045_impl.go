@@ -9,25 +9,12 @@ import (
 
 // DL3045 checks for COPY to relative destination without WORKDIR set.
 func DL3045() rule.Rule {
-	return &DL3045Rule{}
+	return &DL3045Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3045Meta)}
 }
 
 // DL3045Rule implements the rule for checking COPY with relative paths.
-type DL3045Rule struct{}
-
-// Code returns the rule code.
-func (*DL3045Rule) Code() rule.Code {
-	return DL3045Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3045Rule) Severity() rule.Severity {
-	return DL3045Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3045Rule) Message() string {
-	return DL3045Meta.Message
+type DL3045Rule struct {
+	rule.StatefulRuleBase
 }
 
 // InitialState returns the initial state for this rule.
@@ -105,11 +92,6 @@ func (r *DL3045Rule) Check(line int, state rule.State, instruction syntax.Instru
 	}
 
 	return state.ReplaceData(currentState)
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3045Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }
 
 func isLetter(r rune) bool {

@@ -22,26 +22,13 @@ type stageID struct {
 }
 
 // DL3057Rule checks for missing HEALTHCHECK instructions.
-type DL3057Rule struct{}
+type DL3057Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3057 creates the rule for checking missing HEALTHCHECK.
 func DL3057() rule.Rule {
-	return &DL3057Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3057Rule) Code() rule.Code {
-	return DL3057Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3057Rule) Severity() rule.Severity {
-	return DL3057Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3057Rule) Message() string {
-	return DL3057Meta.Message
+	return &DL3057Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3057Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -146,18 +133,12 @@ func ancestors(bad map[stageID]bool, stage stageID) map[stageID]bool {
 }
 
 // Finalize performs final checks after processing all instructions.
-func (*DL3057Rule) Finalize(state rule.State) rule.State {
+func (r *DL3057Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3057State](state)
 
 	// Report failures for all bad stages
 	for badStage := range currentState.badStages {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3057Meta.Code,
-			Severity: DL3057Meta.Severity,
-			Message:  DL3057Meta.Message,
-			Line:     badStage.line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		state = state.AddFailure(rule.Fail(r, badStage.line))
 	}
 
 	return state

@@ -16,26 +16,13 @@ type dl3042State struct {
 }
 
 // DL3042Rule checks for pip install without --no-cache-dir.
-type DL3042Rule struct{}
+type DL3042Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3042 creates the rule for checking pip cache usage.
 func DL3042() rule.Rule {
-	return &DL3042Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3042Rule) Code() rule.Code {
-	return DL3042Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3042Rule) Severity() rule.Severity {
-	return DL3042Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3042Rule) Message() string {
-	return DL3042Meta.Message
+	return &DL3042Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3042Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -49,7 +36,7 @@ func (*DL3042Rule) InitialState() rule.State {
 // Check flags pip install runs that do not disable the pip cache.
 //
 //nolint:gocognit // one case per instruction kind, each read in place; moving the case bodies out left the logic the same, only further away
-func (*DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl3042State](state)
 
 	switch inst := instruction.(type) {
@@ -106,23 +93,12 @@ func (*DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 		// Check all pip install commands
 		if slices.ContainsFunc(parsed.PresentCommands, forgotPipNoCacheDir) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3042Meta.Code,
-				Severity: DL3042Meta.Severity,
-				Message:  DL3042Meta.Message,
-				Line:     line,
-				Column:   1, // Hardcoded to 1 (matches hadolint)
-			})
+			return state.AddFailure(rule.Fail(r, line))
 		}
 
 		return state
 	}
 
-	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3042Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

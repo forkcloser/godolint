@@ -20,26 +20,13 @@ type dl3009State struct {
 }
 
 // DL3009Rule checks for deletion of apt lists after apt update.
-type DL3009Rule struct{}
+type DL3009Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3009 creates the rule for checking apt list cleanup.
 func DL3009() rule.Rule {
-	return &DL3009Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3009Rule) Code() rule.Code {
-	return DL3009Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3009Rule) Severity() rule.Severity {
-	return DL3009Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3009Rule) Message() string {
-	return DL3009Meta.Message
+	return &DL3009Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3009Meta)}
 }
 
 // InitialState returns the initial state for this rule.

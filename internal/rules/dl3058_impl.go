@@ -11,36 +11,25 @@ import (
 
 // DL3058Rule checks that email labels are valid.
 type DL3058Rule struct {
+	rule.StatefulRuleBase
+
 	cfg *config.Config
 }
 
 // DL3058 creates the rule for checking email labels.
 func DL3058() rule.Rule {
 	return &DL3058Rule{
-		cfg: config.Default(),
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3058Meta),
+		cfg:              config.Default(),
 	}
 }
 
 // DL3058WithConfig creates the rule with custom configuration.
 func DL3058WithConfig(cfg *config.Config) rule.Rule {
 	return &DL3058Rule{
-		cfg: cfg,
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3058Meta),
+		cfg:              cfg,
 	}
-}
-
-// Code returns the rule code.
-func (*DL3058Rule) Code() rule.Code {
-	return DL3058Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3058Rule) Severity() rule.Severity {
-	return DL3058Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3058Rule) Message() string {
-	return DL3058Meta.Message
 }
 
 // InitialState returns the initial state for this rule.
@@ -58,21 +47,16 @@ func (r *DL3058Rule) Check(line int, state rule.State, instruction syntax.Instru
 	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeEmail }
 
 	for _, key := range failingLabels(label.Pairs, ofKind, isValidEmail) {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3058Meta.Code,
-			Severity: DL3058Meta.Severity,
-			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-			Message: fmt.Sprintf("Label `%s` is not a valid email format - must conform to RFC5322.", key),
-			Line:    line,
-			Column:  1, // Hardcoded to 1 (matches hadolint)
-		})
+		//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+		state = state.AddFailure(
+			labelFailure(
+				r,
+				line,
+				fmt.Sprintf("Label `%s` is not a valid email format - must conform to RFC5322.", key),
+			),
+		)
 	}
 
-	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3058Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

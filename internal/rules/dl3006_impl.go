@@ -16,26 +16,13 @@ type dl3006State struct {
 
 // DL3006Rule checks that images have explicit tags.
 // Ported from Hadolint.Rule.DL3006.
-type DL3006Rule struct{}
+type DL3006Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3006 creates the rule for checking images have explicit tags.
 func DL3006() rule.Rule {
-	return &DL3006Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3006Rule) Code() rule.Code {
-	return DL3006Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3006Rule) Severity() rule.Severity {
-	return DL3006Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3006Rule) Message() string {
-	return DL3006Meta.Message
+	return &DL3006Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3006Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -47,7 +34,7 @@ func (*DL3006Rule) InitialState() rule.State {
 
 // Check examines FROM instructions and tracks aliases.
 // Ported from the check function in DL3006.hs.
-func (*DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	from, ok := instruction.(*syntax.From)
 	if !ok {
 		return state
@@ -91,18 +78,7 @@ func (*DL3006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	}
 
 	// No tag and not an exception - fail
-	return state.AddFailure(rule.CheckFailure{
-		Code:     DL3006Meta.Code,
-		Severity: DL3006Meta.Severity,
-		Message:  DL3006Meta.Message,
-		Line:     line,
-		Column:   1, // Hardcoded to 1 (matches hadolint)
-	})
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3006Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
+	return state.AddFailure(rule.Fail(r, line))
 }
 
 // isPreviousStage reports whether image refers to a stage in aliases. An

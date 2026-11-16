@@ -137,10 +137,10 @@ func isNameChar(c byte) bool {
 }
 
 // checkPinnedVersions is the Check of a rule that pins versions through
-// versionVars: ENV, ARG and FROM feed the state, and a RUN fails as meta
+// versionVars: ENV, ARG and FROM feed the state, and a RUN fails as self
 // unless pinned holds for its commands.
 func checkPinnedVersions(
-	meta rule.Meta,
+	self rule.Rule,
 	line int,
 	state rule.State,
 	instruction syntax.Instruction,
@@ -161,13 +161,7 @@ func checkPinnedVersions(
 			return state
 		}
 
-		return state.AddFailure(rule.CheckFailure{
-			Code:     meta.Code,
-			Severity: meta.Severity,
-			Message:  meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(self, line))
 	default:
 		return state
 	}

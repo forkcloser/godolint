@@ -8,33 +8,20 @@ import (
 
 // DL3059 creates a rule for checking multiple consecutive RUN instructions.
 func DL3059() rule.Rule {
-	return &DL3059Rule{}
+	return &DL3059Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3059Meta)}
 }
 
 // DL3059Rule checks for multiple consecutive RUN instructions.
 // Ported from Hadolint.Rule.DL3059.
-type DL3059Rule struct{}
+type DL3059Rule struct {
+	rule.StatefulRuleBase
+}
 
 // dl3059State tracks the previous RUN instruction state.
 type dl3059State struct {
 	Seen  bool     // A RUN came before, with nothing but comments since
 	Flags []string // Flags from previous RUN
 	Count int      // Number of commands in previous RUN
-}
-
-// Code returns the rule code.
-func (*DL3059Rule) Code() rule.Code {
-	return DL3059Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3059Rule) Severity() rule.Severity {
-	return DL3059Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3059Rule) Message() string {
-	return DL3059Meta.Message
 }
 
 // InitialState returns the initial state for this rule.
@@ -90,11 +77,6 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 		// Any other instruction resets the state
 		return state.ReplaceData(dl3059State{})
 	}
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3059Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }
 
 // flagsEqual compares two flag slices for equality.

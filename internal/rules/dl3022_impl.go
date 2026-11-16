@@ -17,26 +17,13 @@ type dl3022State struct {
 
 // DL3022Rule checks that COPY --from references valid stages.
 // Ported from Hadolint.Rule.DL3022.
-type DL3022Rule struct{}
+type DL3022Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3022 creates the rule for checking COPY --from references.
 func DL3022() rule.Rule {
-	return &DL3022Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3022Rule) Code() rule.Code {
-	return DL3022Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3022Rule) Severity() rule.Severity {
-	return DL3022Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3022Rule) Message() string {
-	return DL3022Meta.Message
+	return &DL3022Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3022Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -49,7 +36,7 @@ func (*DL3022Rule) InitialState() rule.State {
 
 // Check tracks FROM stages and validates COPY --from references.
 // Ported from the check function in DL3022.hs.
-func (*DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl3022State](state)
 
 	// Track FROM stages
@@ -77,21 +64,10 @@ func (*DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state
 		}
 
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL3022Meta.Code,
-			Severity: DL3022Meta.Severity,
-			Message:  DL3022Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(r, line))
 	}
 
 	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3022Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }
 
 // resolves reports whether a COPY --from names something the rule accepts:

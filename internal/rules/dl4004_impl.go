@@ -14,26 +14,13 @@ const (
 
 // DL4004Rule is a stateful rule that tracks ENTRYPOINT instructions.
 // Ported from Hadolint.Rule.DL4004.
-type DL4004Rule struct{}
+type DL4004Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL4004 creates the rule for checking multiple ENTRYPOINT instructions.
 func DL4004() rule.Rule {
-	return &DL4004Rule{}
-}
-
-// Code returns the rule code.
-func (*DL4004Rule) Code() rule.Code {
-	return DL4004Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL4004Rule) Severity() rule.Severity {
-	return DL4004Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL4004Rule) Message() string {
-	return DL4004Meta.Message
+	return &DL4004Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL4004Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -43,7 +30,7 @@ func (*DL4004Rule) InitialState() rule.State {
 
 // Check implements the stateful check for multiple ENTRYPOINT instructions.
 // Ported from the check function in DL4004.hs.
-func (*DL4004Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL4004Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noEntrypoint)
@@ -59,19 +46,8 @@ func (*DL4004Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		}
 
 		// Second ENTRYPOINT in this stage - add failure
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL4004Meta.Code,
-			Severity: DL4004Meta.Severity,
-			Message:  DL4004Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(r, line))
 	}
 
 	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL4004Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }

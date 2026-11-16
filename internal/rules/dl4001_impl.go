@@ -8,25 +8,12 @@ import (
 
 // DL4001 checks for using both wget and curl.
 func DL4001() rule.Rule {
-	return &DL4001Rule{}
+	return &DL4001Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL4001Meta)}
 }
 
 // DL4001Rule implements the rule for detecting mixed usage of wget and curl.
-type DL4001Rule struct{}
-
-// Code returns the rule code.
-func (*DL4001Rule) Code() rule.Code {
-	return DL4001Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL4001Rule) Severity() rule.Severity {
-	return DL4001Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL4001Rule) Message() string {
-	return DL4001Meta.Message
+type DL4001Rule struct {
+	rule.StatefulRuleBase
 }
 
 // InitialState returns the initial state for this rule.
@@ -81,9 +68,4 @@ func (r *DL4001Rule) Check(line int, state rule.State, instruction syntax.Instru
 	}
 
 	return state.ReplaceData(currentState)
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL4001Rule) Finalize(state rule.State) rule.State {
-	return state
 }
