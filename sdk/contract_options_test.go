@@ -282,6 +282,41 @@ func TestContractSeverity(t *testing.T) {
 	}
 }
 
+// TestContractShellcheckRCFileMustOpen: a configuration file that is not
+// there, or that cannot be opened, is refused, where shellcheck would lint
+// on without it and say so to nobody.
+func TestContractShellcheckRCFileMustOpen(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "no-such-shellcheckrc")
+	closed := filepath.Join(dir, "closed-shellcheckrc")
+
+	if err := os.WriteFile(closed, []byte("disable=SC2086\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := map[string]string{"a file that is not there": missing}
+
+	// Windows, and root anywhere, open a file whose mode forbids it.
+	if file, err := os.Open(closed); err != nil {
+		paths["a file that cannot be opened"] = closed
+	} else {
+		_ = file.Close()
+	}
+
+	for name, path := range paths {
+		var refused *sdk.ConfigError
+
+		result, err := sdk.New(sdk.WithShellcheck(sdk.WithShellcheckRCFile(path))).
+			Lint(t.Context(), []byte("FROM debian:12\nRUN echo $HOME\n"))
+		if result != nil || !errors.As(err, &refused) || refused.Option != "WithShellcheckRCFile" ||
+			refused.Value != path {
+			t.Errorf("%s: %v, %v; want a *ConfigError naming it and no result", name, result, err)
+		}
+	}
+}
+
 // TestContractFirstRefusalIsReturned: of several options given a value they
 // do not take, Lint returns the first's error, in the order the options were
 // given.
