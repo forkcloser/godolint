@@ -45,7 +45,6 @@ func (*DL3009Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Remember new stage
 		currentState.lastFrom = &inst.Image
 		currentState.dockerClean = true
 		// Track which image names are referenced by FROM instructions
@@ -60,20 +59,16 @@ func (*DL3009Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state
 		}
 
-		// Check if forgot to cleanup apt lists
 		if forgotToCleanup(parsed) {
-			// Skip if has cache/tmpfs mount for /var/lib/apt/lists
 			if hasCacheOrTmpfsMount(inst.Flags, "/var/lib/apt/lists") {
 				return state
 			}
 
-			// Skip if has cache/tmpfs mount for BOTH /var/lib/apt AND /var/cache/apt
 			if hasCacheOrTmpfsMount(inst.Flags, "/var/lib/apt") &&
 				hasCacheOrTmpfsMount(inst.Flags, "/var/cache/apt") {
 				return state
 			}
 
-			// Record this line as forgetting cleanup
 			currentState.forgets[line] = currentState.lastFrom
 		} else if disabledDockerClean(parsed) {
 			currentState.dockerClean = false
@@ -119,14 +114,12 @@ func forgotToCleanup(parsed *shell.ParsedShell) bool {
 	hasCleanup := false
 
 	for _, cmd := range parsed.PresentCommands {
-		// Check for apt/apt-get/aptitude update
 		if shell.CmdHasArgs("apt", []string{updateArg}, cmd) ||
 			shell.CmdHasArgs("apt-get", []string{updateArg}, cmd) ||
 			shell.CmdHasArgs("aptitude", []string{updateArg}, cmd) {
 			hasUpdate = true
 		}
 
-		// Check for cleanup
 		if shell.IsRecursiveRemoval(
 			[]string{"/var/lib/apt/lists", "/var/lib/apt/lists/", "/var/lib/apt/lists/*"}, cmd,
 		) {
@@ -139,12 +132,10 @@ func forgotToCleanup(parsed *shell.ParsedShell) bool {
 
 func disabledDockerClean(parsed *shell.ParsedShell) bool {
 	for _, cmd := range parsed.PresentCommands {
-		// Check if removes docker-clean script
 		if shell.CmdHasArgs("rm", []string{"/etc/apt/apt.conf.d/docker-clean"}, cmd) {
 			return true
 		}
 
-		// Check if configures to keep packages
 		if shell.CmdHasArgs("echo", []string{"'Binary::apt::APT::Keep-Downloaded-Packages \"true\";'"}, cmd) {
 			return true
 		}

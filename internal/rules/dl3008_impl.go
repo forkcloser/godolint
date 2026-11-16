@@ -29,7 +29,6 @@ func checkDL3008(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all apt-get install commands
 	for _, cmd := range parsed.PresentCommands {
 		packages := aptGetPackages(cmd)
 		for _, pkg := range packages {
@@ -43,7 +42,6 @@ func checkDL3008(instruction syntax.Instruction) bool {
 }
 
 func aptGetPackages(cmd shell.Command) []string {
-	// Only check apt-get install commands
 	if !shell.CmdHasArgs("apt-get", []string{installArg}, cmd) {
 		return nil
 	}

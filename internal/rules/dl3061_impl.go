@@ -26,26 +26,21 @@ func (*DL3061Rule) InitialState() rule.State {
 func (r *DL3061Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	seenFrom := rule.Data[bool](state)
 
-	// Once we've seen FROM, everything is OK
 	if seenFrom {
 		return state
 	}
 
-	// FROM - mark that we've seen it
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(true)
 	}
 
-	// ARG before FROM - OK
 	if _, ok := instruction.(*syntax.Arg); ok {
 		return state
 	}
 
-	// Comment before FROM - OK
 	if _, ok := instruction.(*syntax.Comment); ok {
 		return state
 	}
 
-	// Any other instruction before FROM - fail
 	return state.AddFailure(rule.Fail(r, line))
 }

@@ -48,13 +48,11 @@ func NewBuildkitParser() *BuildkitParser {
 
 // Parse parses a Dockerfile using moby/buildkit and converts to our AST format.
 func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error) {
-	// Parse using buildkit
 	result, err := parser.Parse(bytes.NewReader(dockerfile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Dockerfile: %w", err)
 	}
 
-	// Convert buildkit AST to our AST format
 	var instructions []syntax.InstructionPos
 
 	comments := commentLines(dockerfile, result.AST.Children)
@@ -190,20 +188,16 @@ func collectValues(node *parser.Node) []string {
 
 		switch {
 		case inQuote:
-			// We're in the middle of a quoted string
 			current += " " + val
 			if strings.HasSuffix(val, "\"") {
-				// End of quoted string
 				values = append(values, current)
 				current = ""
 				inQuote = false
 			}
 		case strings.HasPrefix(val, "\"") && !strings.HasSuffix(val, "\""):
-			// Start of a quoted string that spans multiple nodes
 			current = val
 			inQuote = true
 		default:
-			// Normal value
 			values = append(values, val)
 		}
 	}
@@ -230,7 +224,6 @@ func convertFrom(node *parser.Node) (*syntax.From, error) {
 	image, tag, digest := splitReference(values[0])
 	baseImage := syntax.BaseImage{Image: image, Tag: tag, Digest: digest}
 
-	// Extract --platform flag if present
 	for _, flag := range node.Flags {
 		if after, ok := strings.CutPrefix(flag, "--platform="); ok {
 			platform := after
@@ -238,7 +231,6 @@ func convertFrom(node *parser.Node) (*syntax.From, error) {
 		}
 	}
 
-	// Check for AS alias (last token after AS keyword)
 	for i := 1; i < len(values); i++ {
 		if values[i] == "AS" || values[i] == "as" {
 			if i+1 < len(values) {
@@ -310,7 +302,6 @@ func indexOf(s string, ch rune) int {
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
 func convertRun(node *parser.Node) (*syntax.Run, error) {
-	// Collect all parts of the RUN command
 	command := ""
 
 	for n := node.Next; n != nil; n = n.Next {
@@ -402,8 +393,6 @@ func convertCopy(node *parser.Node) (*syntax.Copy, error) {
 		Destination: values[len(values)-1],
 	}
 
-	// Check for --from flag
-	// Buildkit parser includes flags in node.Flags
 	for _, flag := range node.Flags {
 		if after, ok := strings.CutPrefix(flag, "--from="); ok {
 			fromValue := after
@@ -543,7 +532,6 @@ func convertVolume(node *parser.Node) (*syntax.Volume, error) {
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
 func convertCmd(node *parser.Node) (*syntax.Cmd, error) {
-	// Check if using JSON notation (exec form)
 	isJSON := node.Attributes != nil && node.Attributes["json"]
 
 	return &syntax.Cmd{
@@ -554,7 +542,6 @@ func convertCmd(node *parser.Node) (*syntax.Cmd, error) {
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
 func convertEntrypoint(node *parser.Node) (*syntax.Entrypoint, error) {
-	// Check if using JSON notation (exec form)
 	isJSON := node.Attributes != nil && node.Attributes["json"]
 
 	return &syntax.Entrypoint{
@@ -595,10 +582,8 @@ func convertArg(node *parser.Node) (*syntax.Arg, error) {
 		return nil, ErrArgMissingName
 	}
 
-	// Parse ARG name or ARG name=value
 	arg := &syntax.Arg{}
 
-	// Check for = separator
 	if eqIdx := indexOf(value, '='); eqIdx != -1 {
 		arg.ArgName = value[:eqIdx]
 		defaultVal := value[eqIdx+1:]
@@ -630,7 +615,6 @@ func convertOnBuild(node *parser.Node, escape rune) (*syntax.OnBuild, error) {
 	// We need to parse the inner instruction from the Original string
 	original := strings.TrimSpace(node.Original)
 
-	// Remove the ONBUILD keyword, leaving the instruction it wraps.
 	if !strings.HasPrefix(strings.ToUpper(original), onBuildPrefix) {
 		return nil, ErrInvalidOnBuild
 	}

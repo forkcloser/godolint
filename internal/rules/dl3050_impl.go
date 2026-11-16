@@ -42,15 +42,12 @@ func (r *DL3050Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// Only check if strict labels is enabled
 	if !r.cfg.StrictLabels {
 		return state
 	}
 
-	// Check each label against schema
 	for _, pair := range label.Pairs {
 		if _, exists := r.cfg.LabelSchema[pair.Key]; !exists {
-			// Label not in schema
 			return state.AddFailure(rule.Fail(r, line))
 		}
 	}

@@ -60,11 +60,9 @@ func (*DL3010Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 		destBase := basename(inst.Destination)
 
-		// If destination looks like an archive file, track its basename
 		if isArchive(destBase) {
 			currentState.archives[destBase] = line
 		} else {
-			// If destination is a directory, track source basenames
 			for _, src := range inst.Source {
 				srcBase := basename(src)
 				if isArchive(srcBase) {
@@ -81,7 +79,6 @@ func (*DL3010Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state
 		}
 
-		// Check if any tracked archives are extracted
 		for _, cmd := range parsed.PresentCommands {
 			if isTarExtractCommand(cmd) || isUnzipCommand(cmd) {
 				args := shell.GetArgsNoFlags(cmd)
@@ -115,10 +112,8 @@ func (r *DL3010Rule) Finalize(state rule.State) rule.State {
 }
 
 func basename(path string) string {
-	// Remove quotes
 	path = dropQuotes(path)
 
-	// Get last component after / or \
 	idx := strings.LastIndexAny(path, "/\\")
 	if idx != -1 {
 		return path[idx+1:]
@@ -136,14 +131,12 @@ func isTarExtractCommand(cmd shell.Command) bool {
 
 	args := shell.GetArgs(cmd)
 
-	// Check for long extract flags
 	for _, arg := range args {
 		if arg == "--extract" || arg == "--get" {
 			return true
 		}
 	}
 
-	// Check for short extract flags (-x)
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") && strings.Contains(arg, "x") {
 			return true

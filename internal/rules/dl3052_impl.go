@@ -61,6 +61,5 @@ func isValidURL(urlStr string) bool {
 		return false
 	}
 
-	// Must have a scheme (http, https, etc.)
 	return parsedURL.Scheme != ""
 }

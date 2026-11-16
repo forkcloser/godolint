@@ -81,7 +81,6 @@ func (r *DL4006Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state.ReplaceData(currentState)
 
 	case *syntax.Run:
-		// If pipefail is not set and command has pipes, fail
 		if !currentState.pipefailSet && hasPipes(inst.Command) {
 			return state.AddFailure(rule.Fail(r, line))
 		}
@@ -108,20 +107,17 @@ func isNonPosixShell(program string) bool {
 
 // hasPipes checks if a command contains pipes.
 func hasPipes(command string) bool {
-	// Parse the shell script to check for actual pipe operators
 	parsed, err := shell.ParseShell(command)
 	if err != nil {
 		// Can't parse = can't reliably detect pipes
 		return false
 	}
 
-	// Use shell package to detect pipes properly
 	return shell.HasPipes(parsed)
 }
 
 // hasPipefailOption checks if a shell command sets pipefail.
 func hasPipefailOption(shellCmd string) bool {
-	// Parse the shell command to check for -o pipefail
 	parsed, err := shell.ParseShell(shellCmd)
 	if err != nil {
 		return false
@@ -137,12 +133,10 @@ func hasPipefailOption(shellCmd string) bool {
 			continue
 		}
 
-		// Check for -o flag
 		if !shell.HasFlag("o", cmd) {
 			continue
 		}
 
-		// Check if pipefail is in arguments
 		args := shell.GetArgs(cmd)
 		if slices.Contains(args, "pipefail") {
 			return true

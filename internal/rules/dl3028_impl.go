@@ -30,7 +30,6 @@ func checkDL3028(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all gem install commands
 	for _, cmd := range parsed.PresentCommands {
 		gems := getGemPackages(cmd)
 		for _, gem := range gems {
@@ -44,7 +43,6 @@ func checkDL3028(instruction syntax.Instruction) bool {
 }
 
 func getGemPackages(cmd shell.Command) []string {
-	// Must be gem install or gem i
 	if !shell.CmdHasArgs("gem", []string{installArg}, cmd) && !shell.CmdHasArgs("gem", []string{"i"}, cmd) {
 		return nil
 	}

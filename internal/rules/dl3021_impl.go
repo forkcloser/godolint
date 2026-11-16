@@ -21,12 +21,10 @@ func checkDL3021(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// If only one source, no requirement
 	if len(copyInstr.Source) <= 1 {
 		return true
 	}
 
-	// Multiple sources - destination must end with /
 	dest := dropQuotes(copyInstr.Destination)
 	if dest == "" {
 		return false

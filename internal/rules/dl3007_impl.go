@@ -21,12 +21,10 @@ func checkDL3007(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// If both tag and digest present - always OK
 	if from.Image.Tag != nil && from.Image.Digest != nil {
 		return true
 	}
 
-	// If tag present, must not be "latest"
 	if from.Image.Tag != nil {
 		return *from.Image.Tag != "latest"
 	}

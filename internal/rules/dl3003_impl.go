@@ -27,6 +27,5 @@ func checkDL3003(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Fail if using `cd` command
 	return !shell.UsingProgram("cd", parsed)
 }

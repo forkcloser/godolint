@@ -31,21 +31,17 @@ func (*DL3012Rule) InitialState() rule.State {
 // Check implements the stateful check for multiple HEALTHCHECK instructions.
 // Ported from the check function in DL3012.hs.
 func (r *DL3012Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noHealthcheck)
 	}
 
-	// Check for HEALTHCHECK instruction
 	if _, ok := instruction.(*syntax.Healthcheck); ok {
 		currentState := rule.Data[healthcheckState](state)
 
 		if currentState == noHealthcheck {
-			// First HEALTHCHECK in this stage - remember it
 			return state.ReplaceData(hasHealthcheck)
 		}
 
-		// Second HEALTHCHECK in this stage - add failure
 		return state.AddFailure(rule.Fail(r, line))
 	}
 

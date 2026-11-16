@@ -30,7 +30,6 @@ func checkDL3018(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all apk add commands
 	for _, cmd := range parsed.PresentCommands {
 		packages := apkAddPackages(cmd)
 		for _, pkg := range packages {

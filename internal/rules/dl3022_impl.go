@@ -39,7 +39,6 @@ func (*DL3022Rule) InitialState() rule.State {
 func (r *DL3022Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl3022State](state)
 
-	// Track FROM stages
 	if from, ok := instruction.(*syntax.From); ok {
 		newStages := make(map[string]bool)
 		maps.Copy(newStages, currentState.stages)
@@ -54,7 +53,6 @@ func (r *DL3022Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state.ReplaceData(currentState)
 	}
 
-	// Check COPY --from references
 	if copyInstr, ok := instruction.(*syntax.Copy); ok {
 		if copyInstr.From == nil {
 			return state

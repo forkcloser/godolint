@@ -27,7 +27,6 @@ func checkDL3011(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all ports are in valid range (0-65535)
 	for _, portSpec := range expose.Ports {
 		if !isValidPortSpec(portSpec) {
 			return false
@@ -43,12 +42,10 @@ func isValidPortSpec(portSpec string) bool {
 	parts := strings.Split(portSpec, "/")
 	portPart := parts[0]
 
-	// Variables are always OK
 	if strings.Contains(portPart, "$") {
 		return true
 	}
 
-	// Check if it's a range
 	if strings.Contains(portPart, "-") {
 		rangeParts := strings.Split(portPart, "-")
 		if len(rangeParts) != 2 {
@@ -65,7 +62,6 @@ func isValidPortSpec(portSpec string) bool {
 		return low >= 0 && low <= maxPort && high >= 0 && high <= maxPort
 	}
 
-	// Single port
 	port, err := strconv.Atoi(strings.TrimSpace(portPart))
 	if err != nil {
 		return false

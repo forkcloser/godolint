@@ -23,7 +23,6 @@ func checkDL3029(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// No platform flag - OK
 	if from.Image.Platform == nil {
 		return true
 	}
@@ -35,6 +34,5 @@ func checkDL3029(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Platform flag with hardcoded value - fail
 	return false
 }

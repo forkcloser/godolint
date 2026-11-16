@@ -32,7 +32,6 @@ func (r *DL4001Rule) Check(line int, state rule.State, instruction syntax.Instru
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Reset state for each stage
 		return state.ReplaceData(dl4001State{})
 
 	case *syntax.Run:

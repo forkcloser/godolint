@@ -31,21 +31,17 @@ func (*DL4003Rule) InitialState() rule.State {
 // Check implements the stateful check for multiple CMD instructions.
 // Ported from the check function in DL4003.hs.
 func (r *DL4003Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noCmd)
 	}
 
-	// Check for CMD instruction
 	if _, ok := instruction.(*syntax.Cmd); ok {
 		currentState := rule.Data[cmdState](state)
 
 		if currentState == noCmd {
-			// First CMD in this stage - remember it
 			return state.ReplaceData(hasCmd)
 		}
 
-		// Second CMD in this stage - add failure
 		return state.AddFailure(rule.Fail(r, line))
 	}
 

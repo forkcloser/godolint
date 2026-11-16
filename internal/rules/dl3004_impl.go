@@ -27,6 +27,5 @@ func checkDL3004(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Fail if using `sudo` command
 	return !shell.UsingProgram("sudo", parsed)
 }

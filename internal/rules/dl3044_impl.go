@@ -37,7 +37,6 @@ func (r *DL3044Rule) Check(line int, state rule.State, instruction syntax.Instru
 
 	switch inst := instruction.(type) {
 	case *syntax.Arg:
-		// Track ARG variables
 		currentState.definedVars[inst.ArgName] = true
 
 		return state.ReplaceData(currentState)
@@ -88,13 +87,10 @@ func referencesUndefinedSibling(pairs []syntax.EnvPair, defined map[string]bool)
 // referencesVar checks if a value string references a variable.
 // Matches ${var} or $var (where var is terminated by non-alphanumeric char).
 func referencesVar(value, varName string) bool {
-	// Check for ${varName}
 	if strings.Contains(value, "${"+varName+"}") {
 		return true
 	}
 
-	// Check for $varName with termination
-	// Match $varName where it's followed by non-variable character
 	pattern := regexp.MustCompile(`\$` + regexp.QuoteMeta(varName) + `(?:[^a-zA-Z0-9_]|$)`)
 
 	return pattern.MatchString(value)

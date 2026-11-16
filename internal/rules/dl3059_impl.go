@@ -35,10 +35,8 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 
 	switch instr := instruction.(type) {
 	case *syntax.Run:
-		// Parse the shell command to count commands
 		parsed, err := shell.ParseShell(instr.Command)
 		if err != nil {
-			// If parsing fails, reset state and continue
 			return state.ReplaceData(dl3059State{})
 		}
 
@@ -54,7 +52,6 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 			flagsEqual(prevState.Flags, currentFlags) &&
 			commandCount < 2 && // Current is not chained
 			prevState.Count < 2 { // Previous is not chained
-			// Fail: consecutive simple RUN instructions with same flags
 			return state.AddFailure(rule.Fail(r, line)).ReplaceData(dl3059State{
 				Seen:  true,
 				Flags: currentFlags,
@@ -62,7 +59,6 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 			})
 		}
 
-		// Update state with current RUN
 		return state.ReplaceData(dl3059State{
 			Seen:  true,
 			Flags: currentFlags,

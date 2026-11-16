@@ -29,7 +29,6 @@ func checkDL3037(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all zypper packages
 	packages := getZypperPackages(parsed)
 	for _, pkg := range packages {
 		if !isZypperVersionFixed(pkg) {
@@ -59,7 +58,6 @@ func getZypperPackages(parsed *shell.ParsedShell) []string {
 }
 
 func isZypperVersionFixed(pkg string) bool {
-	// Check for version operators
 	if strings.Contains(pkg, "=") ||
 		strings.Contains(pkg, ">=") ||
 		strings.Contains(pkg, ">") ||

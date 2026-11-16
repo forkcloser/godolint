@@ -39,17 +39,14 @@ func (*DL3002Rule) InitialState() rule.State {
 func (*DL3002Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl3002State](state)
 
-	// Remember new stage
 	if _, ok := instruction.(*syntax.From); ok {
 		currentState.currentStage = line
 
 		return state.ReplaceData(currentState)
 	}
 
-	// Track USER instruction
 	if user, ok := instruction.(*syntax.User); ok {
 		if isRoot(user.User) {
-			// Root user - remember this line for current stage
 			newRootUsers := make(map[int]int)
 			maps.Copy(newRootUsers, currentState.rootUsers)
 
@@ -59,7 +56,6 @@ func (*DL3002Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			return state.ReplaceData(currentState)
 		}
 
-		// Non-root user - forget stage (clear any previous root USER)
 		newRootUsers := make(map[int]int)
 
 		for k, v := range currentState.rootUsers {
@@ -82,7 +78,6 @@ func (*DL3002Rule) Check(line int, state rule.State, instruction syntax.Instruct
 func (r *DL3002Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3002State](state)
 
-	// Add failures for all stages with root users
 	finalState := state
 	for _, userLine := range currentState.rootUsers {
 		finalState = finalState.AddFailure(rule.Fail(r, userLine))

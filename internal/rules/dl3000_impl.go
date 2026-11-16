@@ -25,12 +25,10 @@ func checkDL3000(instruction syntax.Instruction) bool {
 
 	path := dropQuotes(workdir.Directory)
 
-	// Variable expansion - allowed
 	if strings.HasPrefix(path, "$") {
 		return true
 	}
 
-	// Unix absolute path
 	if strings.HasPrefix(path, "/") {
 		return true
 	}
@@ -40,6 +38,5 @@ func checkDL3000(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Relative path - fail
 	return false
 }

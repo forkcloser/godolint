@@ -24,7 +24,6 @@ func checkDL3048(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all label keys are valid
 	for _, pair := range label.Pairs {
 		if !isValidLabelKey(pair.Key) {
 			return false
@@ -41,31 +40,26 @@ func isValidLabelKey(key string) bool {
 		return false
 	}
 
-	// Must start with lowercase letter
 	firstChar := rune(key[0])
 	if !unicode.IsLower(firstChar) {
 		return false
 	}
 
-	// Must end with lowercase letter or digit
 	lastChar := rune(key[len(key)-1])
 	if !unicode.IsLower(lastChar) && !unicode.IsDigit(lastChar) {
 		return false
 	}
 
-	// Check for reserved namespaces
 	if strings.HasPrefix(key, "com.docker.") ||
 		strings.HasPrefix(key, "io.docker.") ||
 		strings.HasPrefix(key, "org.dockerproject.") {
 		return false
 	}
 
-	// Check for consecutive separators
 	if strings.Contains(key, "..") || strings.Contains(key, "--") {
 		return false
 	}
 
-	// Check all characters are valid
 	for _, ch := range key {
 		if !isValidLabelChar(ch) {
 			return false

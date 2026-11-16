@@ -30,27 +30,22 @@ func checkDL3013(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all commands for pip install without version pinning
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotToPinPipVersion)
 }
 
 func forgotToPinPipVersion(cmd shell.Command) bool {
-	// Must be a pip install command
 	if !shell.IsPipInstall(cmd) {
 		return false
 	}
 
-	// Installing from requirements file is OK
 	if isRequirementInstall(cmd) {
 		return false
 	}
 
-	// Using constraint files is OK
 	if hasBuildConstraint(cmd) {
 		return false
 	}
 
-	// Check all packages have version pins
 	packages := getPipPackages(cmd)
 	for _, pkg := range packages {
 		if !isPipVersionFixed(pkg) {
@@ -77,13 +72,10 @@ func hasBuildConstraint(cmd shell.Command) bool {
 }
 
 func getPipPackages(cmd shell.Command) []string {
-	// Get all arguments
 	args := shell.GetArgs(cmd)
 
-	// Remove flags that take values
 	filtered := filterPipFlags(args)
 
-	// Strip "install" prefix
 	packages := stripPipInstallPrefix(filtered)
 
 	return packages
@@ -113,9 +105,7 @@ func filterPipFlags(args []string) []string {
 			continue
 		}
 
-		// Skip flags that start with -
 		if strings.HasPrefix(arg, "-") {
-			// Check if this flag takes a value
 			if flagsWithValues[arg] {
 				skip = true
 			}
@@ -130,7 +120,6 @@ func filterPipFlags(args []string) []string {
 }
 
 func stripPipInstallPrefix(args []string) []string {
-	// Find "install" and skip to packages after it
 	foundInstall := false
 
 	var result []string
@@ -147,22 +136,18 @@ func stripPipInstallPrefix(args []string) []string {
 }
 
 func isPipVersionFixed(pkg string) bool {
-	// Has version symbol
 	if hasVersionSymbol(pkg) {
 		return true
 	}
 
-	// Is versioned VCS
 	if isVersionedVcs(pkg) {
 		return true
 	}
 
-	// Is local package file
 	if isLocalPackage(pkg) {
 		return true
 	}
 
-	// Is non-VCS path source
 	if isNoVcsPathSource(pkg) {
 		return true
 	}

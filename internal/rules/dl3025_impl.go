@@ -19,10 +19,8 @@ func DL3025() rule.Rule {
 func checkDL3025(instruction syntax.Instruction) bool {
 	switch inst := instruction.(type) {
 	case *syntax.Cmd:
-		// Fail if using shell form (not JSON)
 		return inst.IsJSON
 	case *syntax.Entrypoint:
-		// Fail if using shell form (not JSON)
 		return inst.IsJSON
 	case *syntax.Healthcheck:
 		// HEALTHCHECK NONE has no command to write in either form.

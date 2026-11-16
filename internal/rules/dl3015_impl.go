@@ -29,27 +29,22 @@ func checkDL3015(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check if any command is apt-get install without --no-install-recommends
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotNoInstallRecommends)
 }
 
 func forgotNoInstallRecommends(cmd shell.Command) bool {
-	// Must be apt-get install
 	if !shell.CmdHasArgs("apt-get", []string{installArg}, cmd) {
 		return false
 	}
 
-	// Check if it disables recommend option
 	return !disablesRecommendOption(cmd)
 }
 
 func disablesRecommendOption(cmd shell.Command) bool {
-	// Check for --no-install-recommends flag
 	if shell.HasFlag("no-install-recommends", cmd) {
 		return true
 	}
 
-	// Check for APT::Install-Recommends=false argument
 	if shell.HasArg("APT::Install-Recommends=false", cmd) {
 		return true
 	}

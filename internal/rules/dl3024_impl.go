@@ -38,7 +38,6 @@ func (r *DL3024Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// No alias - OK
 	if from.Image.Alias == nil {
 		return state
 	}
@@ -46,13 +45,10 @@ func (r *DL3024Rule) Check(line int, state rule.State, instruction syntax.Instru
 	currentState := rule.Data[dl3024State](state)
 	alias := *from.Image.Alias
 
-	// Check if alias already seen
 	if _, exists := currentState.aliases[alias]; exists {
-		// Duplicate alias - fail
 		return state.AddFailure(rule.Fail(r, line))
 	}
 
-	// Remember this alias
 	newAliases := make(map[string]int)
 	maps.Copy(newAliases, currentState.aliases)
 
