@@ -8,7 +8,7 @@
 # new head when it moves, red until the commits are ported (UPSTREAM.md), and
 # `limen pins refresh` recomputes the digest.
 #
-# The SPDX License List is pinned on a release: `just generate` writes
+# The SPDX License List is pinned on a release: `just converge` writes
 # internal/rules/spdx.go, the identifiers DL3054 accepts, from its
 # licenses.json. Renovate proposes each new release.
 pins:

@@ -2,7 +2,7 @@
 
 Port of <https://github.com/hadolint/hadolint> (`master`), the Dockerfile linter written in
 Haskell. Nothing is merged: the rules' metadata and their tests are generated from the
-pinned hadolint sources (`pins.yaml`, `just generate`), and each rule's behaviour is
+pinned hadolint sources (`pins.yaml`, `just converge`), and each rule's behaviour is
 written in Go to pass them.
 
 - Ported from: hadolint [`db9e652`](https://github.com/hadolint/hadolint/commit/db9e652935fd4d77790b8e16eef8300f660b73bf), its `master` of 2025-10-30 (v2.14.0 and after), when this port started
