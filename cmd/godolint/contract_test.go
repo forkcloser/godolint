@@ -222,7 +222,9 @@ func TestContractIgnoreFlagAndPragmas(t *testing.T) {
 
 // TestContractShellcheckIntegration: with shellcheck on PATH a RUN's
 // shell finding is reported under its SC code at the RUN's line;
-// --without-shellcheck leaves it out.
+// --without-shellcheck leaves it out; --shellcheck-rcfile names the
+// configuration file shellcheck reads, and one that cannot be read is an
+// error and no lint.
 func TestContractShellcheckIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -260,6 +262,53 @@ func TestContractShellcheckIntegration(t *testing.T) {
 		if strings.HasPrefix(f.Code, "SC") {
 			t.Errorf("--without-shellcheck reported %+v", f)
 		}
+	}
+
+	reports := func(failures []failure, code string) bool {
+		return slices.ContainsFunc(failures, func(f failure) bool { return f.Code == code })
+	}
+
+	if !reports(sc, "SC2086") {
+		t.Fatalf("the premise: SC2086 for an unquoted expansion, got %v", sc)
+	}
+
+	config := write(t, "hadolint.yaml", "")
+
+	_, failures, _ = runIn(
+		t,
+		"",
+		nil,
+		"--config",
+		config,
+		"--shellcheck-rcfile",
+		write(t, "shellcheckrc", "disable=SC2086\n"),
+		file,
+	)
+	if reports(failures, "SC2086") {
+		t.Errorf("SC2086 disabled in the file --shellcheck-rcfile names: %v", failures)
+	}
+
+	// The name alone is looked for: the error is logged as JSON, where a
+	// Windows path is not written as it is given.
+	const absent = "no-such-shellcheckrc"
+
+	status, failures, stderr := runIn(
+		t,
+		"",
+		nil,
+		"--config",
+		config,
+		"--shellcheck-rcfile",
+		filepath.Join(t.TempDir(), absent),
+		file,
+	)
+	if status == 0 || len(failures) != 0 || !strings.Contains(stderr, absent) {
+		t.Errorf(
+			"a configuration file that is not there: exit %d, %d failures, stderr %q; want an error naming it and no lint",
+			status,
+			len(failures),
+			stderr,
+		)
 	}
 }
 

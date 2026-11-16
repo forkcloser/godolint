@@ -2,7 +2,9 @@ package sdk_test
 
 import (
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -325,7 +327,8 @@ func TestContractDisabledRulesHoldWhereverTheyStand(t *testing.T) {
 
 // TestContractShellcheckCodes: a code shellcheck reports is disabled and
 // given a severity as a rule's is; shellcheck leaves out SC2187, SC1090 and
-// SC1091 unless WithShellcheckExclusions names other checks, or none.
+// SC1091 unless WithShellcheckExclusions names other checks, or none; it
+// reads the configuration file WithShellcheckRCFile names.
 func TestContractShellcheckCodes(t *testing.T) {
 	t.Parallel()
 
@@ -363,5 +366,15 @@ func TestContractShellcheckCodes(t *testing.T) {
 	other := codes(lint(t, dockerfile, sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2086"))))
 	if !slices.Contains(other, "SC1091") || slices.Contains(other, "SC2086") {
 		t.Errorf("SC2086 left out in place of the three: %v; want SC1091 and no SC2086", other)
+	}
+
+	rcfile := filepath.Join(t.TempDir(), "shellcheckrc")
+	if err := os.WriteFile(rcfile, []byte("disable=SC2086\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	configured := codes(lint(t, dockerfile, sdk.WithShellcheck(sdk.WithShellcheckRCFile(rcfile))))
+	if slices.Contains(configured, "SC2086") {
+		t.Errorf("SC2086 disabled in the configuration file named: %v", configured)
 	}
 }

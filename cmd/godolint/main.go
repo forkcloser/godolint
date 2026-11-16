@@ -265,9 +265,9 @@ func (c *CLI) buildRules(cfg *config.Config) ([]rule.Rule, error) {
 	}
 
 	checker := shell.NewBinaryShellchecker()
-	// Fail fast on an unreadable rcfile: shellcheck errors are non-fatal per
-	// rule (matching hadolint), so a bad path would otherwise silently
-	// disable every SC check.
+	// Fail fast on an unreadable rcfile: shellcheck itself warns of one on
+	// its stderr, which nobody reads here, and lints on without it, so a
+	// wrong path would lint without the configuration and say nothing.
 	if c.ShellcheckRcfile != "" {
 		if _, err := os.Stat(c.ShellcheckRcfile); err != nil {
 			return nil, fmt.Errorf("cannot read shellcheck rcfile: %w", err)
