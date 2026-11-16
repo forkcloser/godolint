@@ -280,3 +280,49 @@ func TestShellcheckRule_Metadata(t *testing.T) {
 		t.Error("Message() returned empty string")
 	}
 }
+
+// TestBinaryShellchecker_LeavesNoScriptBehind: the script is handed to
+// shellcheck as a temporary file, which is gone when Check returns:
+// shellcheck having found something, nothing, or not having run at all.
+func TestBinaryShellchecker_LeavesNoScriptBehind(t *testing.T) {
+	dir := t.TempDir()
+
+	// os.TempDir reads TMPDIR, or TMP on Windows.
+	t.Setenv("TMPDIR", dir)
+	t.Setenv("TMP", dir)
+
+	checker := shell.NewBinaryShellchecker()
+
+	scripts := func() []string {
+		left, err := filepath.Glob(filepath.Join(dir, "shellcheck-*.sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return left
+	}
+
+	for range 10 {
+		for script, found := range map[string]bool{"echo $FOO": true, "echo ok": false} {
+			failures, err := checker.Check(script, shell.DefaultOpts())
+			if err != nil || (len(failures) > 0) != found {
+				t.Fatalf("the premise: %q checked, findings %t; got %v, %v", script, found, failures, err)
+			}
+		}
+	}
+
+	if left := scripts(); len(left) != 0 {
+		t.Errorf("after twenty checks: %v left in the temporary directory", left)
+	}
+
+	// No shellcheck to run.
+	t.Setenv("PATH", t.TempDir())
+
+	if _, err := checker.Check("echo $FOO", shell.DefaultOpts()); err == nil {
+		t.Fatal("the premise: with no shellcheck on PATH, Check fails")
+	}
+
+	if left := scripts(); len(left) != 0 {
+		t.Errorf("after a shellcheck that could not run: %v left in the temporary directory", left)
+	}
+}
