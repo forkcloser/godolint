@@ -33,6 +33,7 @@ func TestParseShellNamesTheCommands(t *testing.T) {
 		{"a wrapper alone", `busybox`, []string{"busybox"}},
 		{"a wrapper of a wrapper", `command busybox wget`, []string{"busybox wget"}},
 		{"a command timed", `time make all`, []string{"make all"}},
+		{"a wrapper written with a backslash", `\command pip install requests`, []string{"pip install requests"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
