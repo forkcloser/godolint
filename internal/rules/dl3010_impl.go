@@ -129,17 +129,40 @@ func isTarExtractCommand(cmd shell.Command) bool {
 		return false
 	}
 
-	args := shell.GetArgs(cmd)
-
-	for _, arg := range args {
-		if arg == "--extract" || arg == "--get" {
+	for i, arg := range shell.GetArgs(cmd) {
+		switch {
+		case arg == "--extract" || arg == "--get":
 			return true
+		case strings.HasPrefix(arg, "--"):
+		case strings.HasPrefix(arg, "-"):
+			if clusterExtracts(arg[1:]) {
+				return true
+			}
+		case i == 0:
+			// tar's old form: its first argument is its options, with no dash.
+			if strings.Contains(arg, "x") {
+				return true
+			}
 		}
 	}
 
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") && strings.Contains(arg, "x") {
+	return false
+}
+
+// tarValueOptions is tar's one-letter options that take a value.
+const tarValueOptions = "bCfFgHIKLNTVX"
+
+// clusterExtracts reads one-letter options written together after a dash.
+// What follows an option that takes a value is the value: the x of
+// -cfx.tar is in a file's name.
+func clusterExtracts(cluster string) bool {
+	for _, option := range cluster {
+		if option == 'x' {
 			return true
+		}
+
+		if strings.ContainsRune(tarValueOptions, option) {
+			return false
 		}
 	}
 
