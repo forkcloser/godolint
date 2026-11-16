@@ -108,60 +108,182 @@ func extractCommand(call *syntax.CallExpr) *Command {
 	}
 }
 
-// maskedExpansion stands in for any dynamic word part (variables, command
-// substitutions, arithmetic) that oversimplification cannot resolve.
+// maskedExpansion stands in for what a word expands to when nothing of it
+// can be read: an arithmetic expansion, a command in backquotes.
 const maskedExpansion = "${VAR}"
 
-// wordToString converts a Word node to a string.
-// Similar to ShellCheck.ASTLib.oversimplify.
+// wordToString is the text of a word as hadolint's simplify reads it, which
+// is what the rules look for names, versions and paths in.
+//
+// A quoted piece is its content. A backslash outside quotes gives the
+// character after it; inside double quotes it does so before a backslash, a
+// double quote, a dollar or a backquote, and stays otherwise. A variable is
+// ${name}, and with an operator the name, the operator and its word:
+// ${VERSION:-1.0}. A $(command) is ${ and the words of its command run
+// together and }: $(cat /tmp/list) is ${cat/tmp/list}. A brace expansion,
+// an extended glob and a process substitution are nothing: pkg-{a,b}-1.0
+// is pkg--1.0.
 func wordToString(word *syntax.Word) string {
+	return wordText(word, "")
+}
+
+// wordText is wordToString with the characters a backslash escapes outside
+// quotes: any, when escapable is empty, as in a command's word; those of
+// escapable alone in the word of a ${name<op>word}.
+func wordText(word *syntax.Word, escapable string) string {
+	// The parser leaves a brace expansion as the literal text it is written
+	// in. SplitBraces splits out what the shell expands: a list, and a
+	// sequence of numbers or of letters. {foo..bar} is no sequence and stays
+	// as it is written, where ShellCheck takes any two dots for one. It
+	// rewrites the word it is given: it gets a copy, since the word belongs
+	// to a tree that is being walked, and the walk does not know a brace
+	// expansion.
+	split := &syntax.Word{Parts: make([]syntax.WordPart, len(word.Parts))}
+
+	for idx, part := range word.Parts {
+		if lit, isLit := part.(*syntax.Lit); isLit {
+			part = &syntax.Lit{Value: lit.Value}
+		}
+
+		split.Parts[idx] = part
+	}
+
+	syntax.SplitBraces(split)
+
 	var build strings.Builder
 
-	for _, part := range word.Parts {
-		switch typart := part.(type) {
-		case *syntax.Lit:
-			_, _ = build.WriteString(typart.Value)
-		case *syntax.SglQuoted:
-			_, _ = build.WriteString(typart.Value)
-		case *syntax.DblQuoted:
-			// Recursively process quoted parts
-			for _, qp := range typart.Parts {
-				switch quoted := qp.(type) {
-				case *syntax.Lit:
-					_, _ = build.WriteString(quoted.Value)
-				case *syntax.ParamExp:
-					_, _ = build.WriteString(paramString(quoted))
-				default:
-					_, _ = build.WriteString(maskedExpansion)
-				}
+	for _, part := range split.Parts {
+		build.WriteString(partText(part, escapable))
+	}
+
+	return build.String()
+}
+
+func partText(part syntax.WordPart, escapable string) string {
+	switch typart := part.(type) {
+	case *syntax.Lit:
+		return unescaped(typart.Value, escapable)
+	case *syntax.SglQuoted:
+		return typart.Value
+	case *syntax.DblQuoted:
+		if typart.Dollar {
+			return ""
+		}
+
+		var build strings.Builder
+
+		for _, quoted := range typart.Parts {
+			if lit, isLit := quoted.(*syntax.Lit); isLit {
+				build.WriteString(unescaped(lit.Value, "\\\"$`"))
+			} else {
+				build.WriteString(partText(quoted, escapable))
 			}
-		case *syntax.ParamExp:
-			_, _ = build.WriteString(paramString(typart))
-		case *syntax.CmdSubst:
-			_, _ = build.WriteString(maskedExpansion)
-		case *syntax.ArithmExp:
-			_, _ = build.WriteString(maskedExpansion)
+		}
+
+		return build.String()
+	case *syntax.ParamExp:
+		return paramString(typart)
+	case *syntax.CmdSubst:
+		return substitutionText(typart)
+	case *syntax.ArithmExp:
+		// $((…)) is not read; the old $[…] is nothing to hadolint.
+		if typart.Bracket {
+			return ""
+		}
+
+		return maskedExpansion
+	default:
+		// A brace expansion, an extended glob, a process substitution.
+		return ""
+	}
+}
+
+// unescaped is text without the backslashes that escape: each one before a
+// character of escapable, or before any character when escapable is empty,
+// goes and leaves the character. A backslash that ends a line is gone
+// before a word is read: the parser joins the lines.
+func unescaped(text, escapable string) string {
+	if !strings.Contains(text, "\\") {
+		return text
+	}
+
+	var build strings.Builder
+
+	for idx := 0; idx < len(text); idx++ {
+		if text[idx] != '\\' || idx+1 == len(text) {
+			build.WriteByte(text[idx])
+
+			continue
+		}
+
+		next := text[idx+1]
+
+		switch {
+		case escapable == "" || strings.IndexByte(escapable, next) >= 0:
+			idx++
+
+			build.WriteByte(next)
 		default:
-			// Other expansions simplified
-			_, _ = build.WriteString(maskedExpansion)
+			build.WriteByte(text[idx])
 		}
 	}
 
 	return build.String()
 }
 
-// paramString is a plain variable reference, $name or ${name}, as ${name},
-// so that a rule can tell which variable a word uses, as hadolint's simplify
-// lets it; a reference with an operator (${name:-x}, ${#name}, ${name[0]})
-// is masked like any other expansion.
+// paramString is a variable reference: $name and ${name} are ${name}, and
+// ${name<op>word} is the name, the operator and the word's own text. Any
+// other form (${#name}, ${name[0]}, ${name/a/b}) is as it is written.
 func paramString(param *syntax.ParamExp) string {
 	plain := param.Param != nil && !param.Excl && !param.Length && !param.Width &&
-		param.Index == nil && param.Slice == nil && param.Repl == nil && param.Exp == nil && param.Names == 0
-	if !plain {
+		param.Index == nil && param.Slice == nil && param.Repl == nil && param.Names == 0
+
+	switch {
+	case plain && param.Exp == nil:
+		return "${" + param.Param.Value + "}"
+	case plain && param.Exp.Word == nil:
+		return "${" + param.Param.Value + param.Exp.Op.String() + "}"
+	case plain:
+		// Inside the braces a backslash escapes these and no other.
+		return "${" + param.Param.Value + param.Exp.Op.String() + wordText(param.Exp.Word, "}\"$`'") + "}"
+	}
+
+	var written strings.Builder
+	if err := syntax.NewPrinter().Print(&written, param); err != nil {
 		return maskedExpansion
 	}
 
-	return "${" + param.Param.Value + "}"
+	return written.String()
+}
+
+// substitutionText is a $(…) as hadolint reads it: ${, the words of each
+// simple command it holds run together, and }. A pipeline or a list joined
+// by && or || gives no words. A command in backquotes is not read.
+func substitutionText(subst *syntax.CmdSubst) string {
+	if subst.Backquotes {
+		return maskedExpansion
+	}
+
+	var build strings.Builder
+
+	build.WriteString("${")
+
+	for _, stmt := range subst.Stmts {
+		// A command negated or sent to the background gives no words either.
+		if stmt.Negated || stmt.Background {
+			continue
+		}
+
+		if call, isCall := stmt.Cmd.(*syntax.CallExpr); isCall {
+			for _, arg := range call.Args {
+				build.WriteString(wordToString(arg))
+			}
+		}
+	}
+
+	build.WriteString("}")
+
+	return build.String()
 }
 
 // extractFlags extracts flag arguments from a list of arguments.

@@ -168,11 +168,11 @@ func isVersionLike(parts []string) bool {
 	return allValid && hasDigitStart
 }
 
+// isValidVersionPart reports whether every character of part may stand in a
+// version. A part with no character is valid, as in hadolint: two dashes
+// side by side, which a brace expansion between them leaves
+// (httpd-{devel,tools}-2.4.6), do not unmake a version.
 func isValidVersionPart(part string) bool {
-	if part == "" {
-		return false
-	}
-
 	for _, ch := range part {
 		if !isVersionChar(ch) {
 			return false

@@ -174,7 +174,7 @@ func isDnfVersionLike(parts []string) bool {
 			return false
 		}
 
-		if unicode.IsDigit(rune(part[0])) {
+		if part != "" && unicode.IsDigit(rune(part[0])) {
 			hasDigitStart = true
 		}
 	}
@@ -182,11 +182,9 @@ func isDnfVersionLike(parts []string) bool {
 	return hasDigitStart
 }
 
+// isDnfValidVersionPart reports whether every character of part may stand
+// in a version; a part with no character is valid, as for yum (DL3033).
 func isDnfValidVersionPart(part string) bool {
-	if part == "" {
-		return false
-	}
-
 	for _, ch := range part {
 		if !isDnfVersionChar(ch) {
 			return false
