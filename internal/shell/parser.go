@@ -60,11 +60,15 @@ func extractCommands(file *syntax.File) []Command {
 	var commands []Command
 
 	syntax.Walk(file, func(node syntax.Node) bool {
-		// Look for CallExpr nodes (simple commands)
-		if call, ok := node.(*syntax.CallExpr); ok {
-			if cmd := extractCommand(call); cmd != nil {
+		switch typed := node.(type) {
+		case *syntax.CallExpr:
+			if cmd := extractCommand(typed); cmd != nil {
 				commands = append(commands, *cmd)
 			}
+		case *syntax.DeclClause:
+			// export, declare, local, readonly and typeset are commands as
+			// any other; the parser gives them a node of their own.
+			commands = append(commands, declaration(typed))
 		}
 
 		return true
@@ -73,24 +77,68 @@ func extractCommands(file *syntax.File) []Command {
 	return commands
 }
 
+// declaration is the command a declaration is: its name, and each thing it
+// declares as an argument.
+func declaration(decl *syntax.DeclClause) Command {
+	args := make([]CmdPart, len(decl.Args))
+
+	for idx, assign := range decl.Args {
+		var text strings.Builder
+
+		if assign.Name != nil {
+			text.WriteString(assign.Name.Value)
+		}
+
+		if !assign.Naked {
+			text.WriteString("=")
+		}
+
+		if assign.Value != nil {
+			text.WriteString(wordToString(assign.Value))
+		}
+
+		args[idx] = CmdPart{Arg: text.String(), ID: idx}
+	}
+
+	return Command{Name: decl.Variant.Value, Arguments: args, Flags: extractFlags(args)}
+}
+
+// isWrapper reports whether name runs the command its first argument names:
+// busybox wget is wget.
+func isWrapper(name string) bool {
+	switch name {
+	case "busybox", "builtin", "command", "exec", "run":
+		return true
+	default:
+		return false
+	}
+}
+
 // extractCommand extracts a Command from a CallExpr node.
 func extractCommand(call *syntax.CallExpr) *Command {
 	if len(call.Args) == 0 {
 		return nil
 	}
 
-	// Get command name from first argument
-	nameWord := call.Args[0]
-
-	name := wordToString(nameWord)
+	name := wordToString(call.Args[0])
 	if name == "" {
 		return nil
+	}
+
+	words := call.Args[1:]
+
+	// A wrapper followed by an option is the wrapper's own business
+	// (command -v pip, busybox --list), and the command is the wrapper.
+	if isWrapper(name) && len(words) > 0 {
+		if wrapped := wordToString(words[0]); wrapped != "" && !strings.HasPrefix(wrapped, "-") {
+			name, words = wrapped, words[1:]
+		}
 	}
 
 	// Extract all arguments with IDs
 	var allArgs []CmdPart
 
-	for i, arg := range call.Args[1:] {
+	for i, arg := range words {
 		argStr := wordToString(arg)
 		allArgs = append(allArgs, CmdPart{
 			Arg: argStr,

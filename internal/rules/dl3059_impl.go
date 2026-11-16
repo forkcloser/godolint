@@ -17,6 +17,7 @@ type DL3059Rule struct{}
 
 // dl3059State tracks the previous RUN instruction state.
 type dl3059State struct {
+	Seen  bool     // A RUN came before, with nothing but comments since
 	Flags []string // Flags from previous RUN
 	Count int      // Number of commands in previous RUN
 }
@@ -62,12 +63,13 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 		// 2. Flags are the same
 		// 3. NEITHER current NOR previous have chained commands (2+)
 		// Per hadolint: "ignores the case where multiple commands are chained together"
-		if prevState.Count > 0 && // Previous RUN exists
+		if prevState.Seen && // Previous RUN exists, with a command in it or not
 			flagsEqual(prevState.Flags, currentFlags) &&
 			commandCount < 2 && // Current is not chained
 			prevState.Count < 2 { // Previous is not chained
 			// Fail: consecutive simple RUN instructions with same flags
 			return state.AddFailure(rule.Fail(r, line)).ReplaceData(dl3059State{
+				Seen:  true,
 				Flags: currentFlags,
 				Count: commandCount,
 			})
@@ -75,6 +77,7 @@ func (r *DL3059Rule) Check(line int, state rule.State, instruction syntax.Instru
 
 		// Update state with current RUN
 		return state.ReplaceData(dl3059State{
+			Seen:  true,
 			Flags: currentFlags,
 			Count: commandCount,
 		})
