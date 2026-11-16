@@ -427,28 +427,31 @@ func UsingProgram(program string, ps *ParsedShell) bool {
 	return false
 }
 
-// GetFlagArg returns the argument values for a specific flag.
-// Ported from Hadolint.Shell.getFlagArg.
+// GetFlagArg is each value flag is given: the argument after --flag, or
+// after -f alone or last in a cluster (-xf value), and what follows the =
+// of --flag=value. A value glued to a short flag (-fvalue) is not read:
+// nothing tells it from a cluster.
 func GetFlagArg(flag string, cmd Command) []string {
 	var values []string
 
-	args := cmd.Arguments
+	for idx, arg := range cmd.Arguments {
+		text := arg.Arg
 
-	for i, arg := range args {
-		// Check for -flag value or --flag value
-		if arg.Arg == "-"+flag || arg.Arg == "--"+flag {
-			// Next argument is the value
-			if i+1 < len(args) {
-				values = append(values, args[i+1].Arg)
+		if len(flag) > 1 {
+			if value, glued := strings.CutPrefix(text, "--"+flag+"="); glued {
+				values = append(values, value)
+
+				continue
 			}
-
-			continue
 		}
 
-		// Check for --flag=value
-		if after, ok := strings.CutPrefix(arg.Arg, "--"+flag+"="); ok {
-			value := after
-			values = append(values, value)
+		named := text == "--"+flag
+		if len(flag) == 1 {
+			named = strings.HasPrefix(text, "-") && !strings.HasPrefix(text, "--") && strings.HasSuffix(text[1:], flag)
+		}
+
+		if named && idx+1 < len(cmd.Arguments) {
+			values = append(values, cmd.Arguments[idx+1].Arg)
 		}
 	}
 
