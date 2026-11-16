@@ -165,7 +165,8 @@ type ShellcheckOption func(*shellcheckConfig)
 // WithShellcheckRCFile makes shellcheck use the given configuration file
 // (forwarded as --rcfile, requires shellcheck >= 0.10.0). Without it,
 // shellcheck never sees a repository's .shellcheckrc: the checked script runs
-// from a temp dir, outside the rcfile search path.
+// from a temp dir, outside the rcfile search path. A file that cannot be
+// opened is a value the option does not take: Lint returns a *ConfigError.
 func WithShellcheckRCFile(path string) ShellcheckOption {
 	return func(c *shellcheckConfig) {
 		c.rcFile = path
@@ -191,12 +192,30 @@ func WithShellcheck(scOpts ...ShellcheckOption) Option {
 			opt(&cfg)
 		}
 
+		// shellcheck warns of a file it cannot read on its standard error,
+		// which is not its report, and lints on without it.
+		if cfg.rcFile != "" && !opens(cfg.rcFile) {
+			linter.refuse("WithShellcheckRCFile", cfg.rcFile)
+		}
+
 		checker := shell.NewBinaryShellchecker()
 		checker.RCFile = cfg.rcFile
 		checker.Exclude = cfg.exclude
 		scRule := shell.NewShellcheckRule(checker)
 		linter.rules = append(linter.rules, scRule)
 	}
+}
+
+// opens reports whether the file at path can be opened for reading.
+func opens(path string) bool {
+	file, err := os.Open(
+		path,
+	) // #nosec G304 G703 -- the configuration file the caller names, as shellcheck would open it
+	if err != nil {
+		return false
+	}
+
+	return file.Close() == nil
 }
 
 // New creates a new Linter with the given options.

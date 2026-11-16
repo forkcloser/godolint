@@ -269,7 +269,13 @@ func (c *CLI) buildRules(cfg *config.Config) ([]rule.Rule, error) {
 	// its stderr, which nobody reads here, and lints on without it, so a
 	// wrong path would lint without the configuration and say nothing.
 	if c.ShellcheckRcfile != "" {
-		if _, err := os.Stat(c.ShellcheckRcfile); err != nil {
+		// #nosec G304 G703 -- the configuration file the operator names, as shellcheck would open it
+		file, err := os.Open(c.ShellcheckRcfile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read shellcheck rcfile: %w", err)
+		}
+
+		if err := file.Close(); err != nil {
 			return nil, fmt.Errorf("cannot read shellcheck rcfile: %w", err)
 		}
 

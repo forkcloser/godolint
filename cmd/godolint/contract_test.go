@@ -310,6 +310,30 @@ func TestContractShellcheckIntegration(t *testing.T) {
 			stderr,
 		)
 	}
+
+	const closed = "closed-shellcheckrc"
+
+	unreadable := write(t, closed, "disable=SC2086\n")
+	if err := os.Chmod(unreadable, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Windows, and root anywhere, open a file whose mode forbids it.
+	if opened, err := os.Open(unreadable); err == nil {
+		_ = opened.Close()
+
+		return
+	}
+
+	status, failures, stderr = runIn(t, "", nil, "--config", config, "--shellcheck-rcfile", unreadable, file)
+	if status == 0 || len(failures) != 0 || !strings.Contains(stderr, closed) {
+		t.Errorf(
+			"a configuration file that cannot be opened: exit %d, %d failures, stderr %q; want an error naming it and no lint",
+			status,
+			len(failures),
+			stderr,
+		)
+	}
 }
 
 // TestContractErrorsAndLogsOnStderr: a missing file and a file with no
