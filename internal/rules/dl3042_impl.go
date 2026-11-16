@@ -54,8 +54,12 @@ func (*DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Update current stage
+		// A stage under an alias starts with what the image it is built on
+		// has: a stage built on one that turned pip's cache off has it off.
+		// A stage with no alias goes by its image's name, and so has that
+		// already.
 		if inst.Image.Alias != nil {
+			currentState.noCacheSet[*inst.Image.Alias] = currentState.noCacheSet[inst.Image.Image]
 			currentState.currentStage = *inst.Image.Alias
 		} else {
 			currentState.currentStage = inst.Image.Image
@@ -64,10 +68,16 @@ func (*DL3042Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		return state.ReplaceData(currentState)
 
 	case *syntax.Env:
-		// Check if PIP_NO_CACHE_DIR is set to truthy value
-		for _, pair := range inst.Pairs {
-			if pair.Key == "PIP_NO_CACHE_DIR" && isTruthy(pair.Value) {
-				currentState.noCacheSet[currentState.currentStage] = true
+		// An ENV that sets PIP_NO_CACHE_DIR to a truthy value turns the
+		// cache off for the stage. Given twice in one ENV, the last value is
+		// the one the build keeps.
+		for _, pair := range slices.Backward(inst.Pairs) {
+			if pair.Key == "PIP_NO_CACHE_DIR" {
+				if isTruthy(pair.Value) {
+					currentState.noCacheSet[currentState.currentStage] = true
+				}
+
+				break
 			}
 		}
 
@@ -118,7 +128,7 @@ func (*DL3042Rule) Finalize(state rule.State) rule.State {
 
 func forgotPipNoCacheDir(cmd shell.Command) bool {
 	// Must be pip install
-	if !isPipInstall(cmd) {
+	if !shell.IsPipInstall(cmd) {
 		return false
 	}
 
@@ -131,12 +141,6 @@ func forgotPipNoCacheDir(cmd shell.Command) bool {
 	args := shell.GetArgs(cmd)
 
 	return !slices.Contains(args, "--no-cache-dir")
-}
-
-func isPipInstall(cmd shell.Command) bool {
-	return shell.CmdHasArgs("pip", []string{installArg}, cmd) ||
-		shell.CmdHasArgs("pip2", []string{installArg}, cmd) ||
-		shell.CmdHasArgs("pip3", []string{installArg}, cmd)
 }
 
 func isPipWrapper(cmd shell.Command) bool {
@@ -161,48 +165,20 @@ func isPipWrapper(cmd shell.Command) bool {
 	return false
 }
 
-func isTruthy(value string) bool {
-	truthy := map[string]bool{
-		"1":    true,
-		"true": true,
-		"True": true,
-		"TRUE": true,
-		"on":   true,
-		"On":   true,
-		"ON":   true,
-		"yes":  true,
-		"Yes":  true,
-		"YES":  true,
-	}
+// truthy is the values that turn PIP_NO_CACHE_DIR on.
+//
+//nolint:gochecknoglobals // a constant list
+var truthy = []string{"1", "true", "True", "TRUE", "on", "On", "ON", "yes", "Yes", "YES"}
 
-	return truthy[value]
+func isTruthy(value string) bool {
+	return slices.Contains(truthy, value)
 }
 
+// pipNoCacheDirSetInCommand reports whether the RUN's own text sets
+// PIP_NO_CACHE_DIR on: what follows the first `PIP_NO_CACHE_DIR=` begins
+// with one of the truthy values, whatever comes after it (`=1;`, `=1 pip`).
 func pipNoCacheDirSetInCommand(command string) bool {
-	// Check if PIP_NO_CACHE_DIR=<value> appears in the command
-	_, after, ok := strings.Cut(command, "PIP_NO_CACHE_DIR=")
-	if !ok {
-		return false
-	}
+	_, value, found := strings.Cut(command, "PIP_NO_CACHE_DIR=")
 
-	// Extract the value after PIP_NO_CACHE_DIR=
-	rest := after
-
-	// Get the value (up to space or end of string)
-	value := ""
-
-	for i, ch := range rest {
-		if ch == ' ' || ch == '\t' || ch == '\n' {
-			value = rest[:i]
-
-			break
-		}
-	}
-
-	if value == "" {
-		value = rest
-	}
-
-	// Check if value is truthy
-	return isTruthy(value)
+	return found && slices.ContainsFunc(truthy, func(word string) bool { return strings.HasPrefix(value, word) })
 }
