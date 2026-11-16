@@ -4,9 +4,11 @@
 package main_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -314,4 +316,70 @@ func exeSuffix() string {
 	}
 
 	return ""
+}
+
+// TestContractFailuresAreOrdered: the failures of a file come ordered by
+// line, and by code on one line, the same on every run; with several files,
+// file by file in the order they are given.
+func TestContractFailuresAreOrdered(t *testing.T) {
+	t.Parallel()
+
+	// Two stages with no HEALTHCHECK, which DL3057 keeps in no order of
+	// its own, and a line three rules report.
+	first := write(
+		t,
+		"Dockerfile",
+		"FROM debian:latest AS one\nFROM debian:latest\nWORKDIR app\nRUN apt-get install curl && sudo true\n",
+	)
+	second := write(t, "Dockerfile.second", "FROM ubuntu\nMAINTAINER x\n")
+
+	order := func(failures []failure) []string {
+		var out []string
+		for _, f := range failures {
+			out = append(out, fmt.Sprintf("%s:%d %s", filepath.Base(f.File), f.Line, f.Code))
+		}
+
+		return out
+	}
+
+	_, failures, _ := run(t, "--without-shellcheck", "--info=DL3057", second, first)
+	want := order(failures)
+
+	// The files in the order given, the second and then the first; within
+	// one, by line and then by code.
+	given := map[string]int{second: 0, first: 1}
+
+	sorted := slices.Clone(failures)
+	slices.SortStableFunc(sorted, func(left, right failure) int {
+		return cmp.Or(
+			cmp.Compare(given[left.File], given[right.File]),
+			cmp.Compare(left.Line, right.Line),
+			cmp.Compare(left.Code, right.Code),
+		)
+	})
+
+	if !slices.Equal(want, order(sorted)) {
+		t.Errorf("the failures come in the order\n%q\nwant\n%q", want, order(sorted))
+	}
+
+	for _, code := range []string{"Dockerfile:1 DL3057", "Dockerfile:2 DL3057", "Dockerfile:4 DL3004", "Dockerfile:4 DL3008"} {
+		if !slices.Contains(want, code) {
+			t.Fatalf("the run lacks %s, which the order is to be seen on: %q", code, want)
+		}
+	}
+
+	for range 20 {
+		if _, again, _ := run(
+			t,
+			"--without-shellcheck",
+			"--info=DL3057",
+			second,
+			first,
+		); !slices.Equal(
+			order(again),
+			want,
+		) {
+			t.Fatalf("another run gives another order:\n%q\nthe first gave\n%q", order(again), want)
+		}
+	}
 }

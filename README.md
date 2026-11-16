@@ -376,24 +376,24 @@ The command writes hadolint's `json` format and no other: one array on stdout, o
 [
   {
     "file": "Dockerfile",
-    "line": 2,
-    "column": 1,
-    "level": "error",
-    "code": "DL3000",
-    "message": "Use absolute WORKDIR"
-  },
-  {
-    "file": "Dockerfile",
     "line": 1,
     "column": 1,
     "level": "warning",
     "code": "DL3007",
     "message": "Using latest is prone to errors if the image will ever update. Pin the version explicitly to a release tag"
+  },
+  {
+    "file": "Dockerfile",
+    "line": 2,
+    "column": 1,
+    "level": "error",
+    "code": "DL3000",
+    "message": "Use absolute WORKDIR"
   }
 ]
 ```
 
-`file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`.
+`file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`. The violations of a file are ordered by line, and by code on one line; several files come one after the other, in the order they were given.
 
 There is no `--format` and no `--output`: hadolint's other formats (`tty`, its default, `checkstyle`, `codacy`, `codeclimate`, `gitlab_codeclimate`, `gnu`, `junit`, `sarif`, `sonarqube`) and its output file are not offered, and a configuration file that asks for one of them is refused. A caller that wants another shape reads the JSON.
 
