@@ -33,31 +33,15 @@ func checkDL3046(instruction syntax.Instruction) bool {
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotUseraddFlagL)
 }
 
+// forgotUseraddFlagL reports a useradd that gives a UID of more than five
+// digits and no -l: the UID after -u, alone or last in a cluster (-mu), or
+// given to --uid.
 func forgotUseraddFlagL(cmd shell.Command) bool {
-	// Must be useradd
-	if cmd.Name != "useradd" {
+	if cmd.Name != "useradd" || shell.HasAnyFlag([]string{"l", "no-log-init"}, cmd) {
 		return false
 	}
 
-	// Must not have -l or --no-log-init flag
-	hasLFlag := shell.HasAnyFlag([]string{"l", "no-log-init"}, cmd)
-	if hasLFlag {
-		return false
-	}
+	uids := append(shell.GetFlagArg("u", cmd), shell.GetFlagArg("uid", cmd)...)
 
-	// Must have -u or --uid flag
-	hasUFlag := shell.HasAnyFlag([]string{"u", "uid"}, cmd)
-	if !hasUFlag {
-		return false
-	}
-
-	// Check if UID is long (> 5 digits)
-	uids := shell.GetFlagArg("u", cmd)
-	for _, uid := range uids {
-		if len(uid) > 5 {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(uids, func(uid string) bool { return len(uid) > 5 })
 }
