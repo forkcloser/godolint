@@ -29,7 +29,6 @@ func checkDL3046(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all useradd commands
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotUseraddFlagL)
 }
 

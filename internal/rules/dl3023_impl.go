@@ -26,7 +26,6 @@ func (*DL3023Rule) InitialState() rule.State {
 func (r *DL3023Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentAlias := rule.Data[string](state)
 
-	// Remember current FROM alias
 	if from, ok := instruction.(*syntax.From); ok {
 		if from.Image.Alias != nil {
 			return state.ReplaceData(*from.Image.Alias)
@@ -35,11 +34,9 @@ func (r *DL3023Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state.ReplaceData("") // No alias
 	}
 
-	// Check COPY --from doesn't reference current stage
 	if copyInstr, ok := instruction.(*syntax.Copy); ok {
 		if copyInstr.From != nil && currentAlias != "" {
 			if *copyInstr.From == currentAlias {
-				// Self-reference - fail
 				return state.AddFailure(rule.Fail(r, line))
 			}
 		}

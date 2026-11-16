@@ -46,7 +46,6 @@ func (r *DL3006Rule) Check(line int, state rule.State, instruction syntax.Instru
 	// so `FROM app-${X} AS app-final` must not match itself.
 	previous := currentState.aliases
 
-	// Add alias to set if present
 	if from.Image.Alias != nil {
 		newAliases := make(map[string]bool)
 		maps.Copy(newAliases, currentState.aliases)
@@ -56,18 +55,14 @@ func (r *DL3006Rule) Check(line int, state rule.State, instruction syntax.Instru
 		state = state.ReplaceData(currentState)
 	}
 
-	// Check if image needs explicit tag
-	// Scratch image - OK
 	if from.Image.Image == scratchImage {
 		return state
 	}
 
-	// Has digest - OK
 	if from.Image.Digest != nil {
 		return state
 	}
 
-	// Has tag - OK
 	if from.Image.Tag != nil {
 		return state
 	}
@@ -77,7 +72,6 @@ func (r *DL3006Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state
 	}
 
-	// No tag and not an exception - fail
 	return state.AddFailure(rule.Fail(r, line))
 }
 

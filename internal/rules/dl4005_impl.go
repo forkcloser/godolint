@@ -27,7 +27,6 @@ func checkDL4005(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Fail if using `ln /bin/sh` command
 	for _, cmd := range parsed.PresentCommands {
 		if shell.CmdHasArgs("ln", []string{"/bin/sh"}, cmd) {
 			return false

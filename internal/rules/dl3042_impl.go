@@ -71,17 +71,14 @@ func (r *DL3042Rule) Check(line int, state rule.State, instruction syntax.Instru
 		return state.ReplaceData(currentState)
 
 	case *syntax.Run:
-		// Skip if PIP_NO_CACHE_DIR is already set for this stage
 		if currentState.noCacheSet[currentState.currentStage] {
 			return state
 		}
 
-		// Skip if pip's cache is a cache or tmpfs mount
 		if hasCacheOrTmpfsMount(inst.Flags, ".cache/pip") {
 			return state
 		}
 
-		// Check if PIP_NO_CACHE_DIR is set to truthy value in the RUN command itself
 		if pipNoCacheDirSetInCommand(inst.Command) {
 			return state
 		}
@@ -91,7 +88,6 @@ func (r *DL3042Rule) Check(line int, state rule.State, instruction syntax.Instru
 			return state
 		}
 
-		// Check all pip install commands
 		if slices.ContainsFunc(parsed.PresentCommands, forgotPipNoCacheDir) {
 			return state.AddFailure(rule.Fail(r, line))
 		}
@@ -103,29 +99,24 @@ func (r *DL3042Rule) Check(line int, state rule.State, instruction syntax.Instru
 }
 
 func forgotPipNoCacheDir(cmd shell.Command) bool {
-	// Must be pip install
 	if !shell.IsPipInstall(cmd) {
 		return false
 	}
 
-	// Skip if it's a pip wrapper (pipx, pipenv)
 	if isPipWrapper(cmd) {
 		return false
 	}
 
-	// Check if has --no-cache-dir flag
 	args := shell.GetArgs(cmd)
 
 	return !slices.Contains(args, "--no-cache-dir")
 }
 
 func isPipWrapper(cmd shell.Command) bool {
-	// Check for pipx or pipenv in command name
 	if strings.Contains(cmd.Name, "pipx") || strings.Contains(cmd.Name, "pipenv") {
 		return true
 	}
 
-	// Check for python -m pipx/pipenv
 	if strings.HasPrefix(cmd.Name, "python") {
 		args := shell.GetArgs(cmd)
 		for i, arg := range args {

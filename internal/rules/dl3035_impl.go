@@ -27,7 +27,6 @@ func checkDL3035(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Fail if any command uses zypper dist-upgrade or dup
 	for _, cmd := range parsed.PresentCommands {
 		if shell.CmdHasArgs(zypperCommand, []string{"dist-upgrade"}, cmd) ||
 			shell.CmdHasArgs(zypperCommand, []string{"dup"}, cmd) {

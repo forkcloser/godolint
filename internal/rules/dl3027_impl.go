@@ -27,6 +27,5 @@ func checkDL3027(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Fail if using `apt` command
 	return !shell.UsingProgram("apt", parsed)
 }

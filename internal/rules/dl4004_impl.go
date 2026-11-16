@@ -31,21 +31,17 @@ func (*DL4004Rule) InitialState() rule.State {
 // Check implements the stateful check for multiple ENTRYPOINT instructions.
 // Ported from the check function in DL4004.hs.
 func (r *DL4004Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noEntrypoint)
 	}
 
-	// Check for ENTRYPOINT instruction
 	if _, ok := instruction.(*syntax.Entrypoint); ok {
 		currentState := rule.Data[entrypointState](state)
 
 		if currentState == noEntrypoint {
-			// First ENTRYPOINT in this stage - remember it
 			return state.ReplaceData(hasEntrypoint)
 		}
 
-		// Second ENTRYPOINT in this stage - add failure
 		return state.AddFailure(rule.Fail(r, line))
 	}
 

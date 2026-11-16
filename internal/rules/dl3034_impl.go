@@ -32,7 +32,6 @@ func checkDL3034(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all zypper commands
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotZypperYesOption)
 }
 

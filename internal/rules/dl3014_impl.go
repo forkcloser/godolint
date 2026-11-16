@@ -29,17 +29,14 @@ func checkDL3014(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check if any command is apt-get install without -y flag
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotAptYesOption)
 }
 
 func forgotAptYesOption(cmd shell.Command) bool {
-	// Must be apt-get install
 	if !shell.CmdHasArgs("apt-get", []string{installArg}, cmd) {
 		return false
 	}
 
-	// Check if it has yes option
 	return !hasYesOption(cmd)
 }
 

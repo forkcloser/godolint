@@ -24,7 +24,6 @@ func checkDL3020(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// ADD is OK if all sources are archives or URLs
 	for _, src := range add.Source {
 		if !isArchive(src) && !isURL(src) {
 			return false

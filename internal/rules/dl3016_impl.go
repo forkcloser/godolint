@@ -30,17 +30,14 @@ func checkDL3016(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all commands for npm install without version pinning
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotToPinNpmVersion)
 }
 
 func forgotToPinNpmVersion(cmd shell.Command) bool {
-	// Must be npm install
 	if !shell.CmdHasArgs("npm", []string{installArg}, cmd) {
 		return false
 	}
 
-	// Get packages
 	packages := getNpmPackages(cmd)
 
 	// If no packages (npm install with no args), that's OK (installs from package.json)
@@ -48,7 +45,6 @@ func forgotToPinNpmVersion(cmd shell.Command) bool {
 		return false
 	}
 
-	// Check all packages have version pins
 	for _, pkg := range packages {
 		if !isNpmVersionFixed(pkg) {
 			return true
@@ -59,13 +55,10 @@ func forgotToPinNpmVersion(cmd shell.Command) bool {
 }
 
 func getNpmPackages(cmd shell.Command) []string {
-	// Get all arguments
 	args := shell.GetArgs(cmd)
 
-	// Remove flags that take values
 	filtered := filterNpmFlags(args)
 
-	// Strip "install" prefix
 	return stripNpmInstallPrefix(filtered)
 }
 
@@ -87,9 +80,7 @@ func filterNpmFlags(args []string) []string {
 			continue
 		}
 
-		// Skip flags that start with -
 		if strings.HasPrefix(arg, "-") {
-			// Check if this flag takes a value
 			if flagsWithValues[arg] {
 				skip = true
 			}
@@ -104,7 +95,6 @@ func filterNpmFlags(args []string) []string {
 }
 
 func stripNpmInstallPrefix(args []string) []string {
-	// Find "install" and skip to packages after it
 	foundInstall := false
 
 	var result []string
@@ -121,22 +111,18 @@ func stripNpmInstallPrefix(args []string) []string {
 }
 
 func isNpmVersionFixed(pkg string) bool {
-	// Git URL with commit/tag
 	if hasNpmGitPrefix(pkg) {
 		return isVersionedGit(pkg)
 	}
 
-	// Tarball file
 	if hasNpmTarballSuffix(pkg) {
 		return true
 	}
 
-	// Folder path
 	if isNpmFolder(pkg) {
 		return true
 	}
 
-	// Package with version symbol (@)
 	return hasNpmVersionSymbol(pkg)
 }
 
@@ -184,14 +170,12 @@ func isVersionedGit(pkg string) bool {
 }
 
 func hasNpmVersionSymbol(pkg string) bool {
-	// Drop scope prefix if present
 	pkg = dropNpmScope(pkg)
 
 	return strings.Contains(pkg, "@")
 }
 
 func dropNpmScope(pkg string) string {
-	// If starts with @, drop until first /
 	if strings.HasPrefix(pkg, "@") {
 		idx := strings.IndexByte(pkg, '/')
 		if idx != -1 && idx+1 < len(pkg) {

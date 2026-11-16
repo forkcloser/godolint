@@ -46,7 +46,6 @@ func (*DL3057Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 	switch inst := instruction.(type) {
 	case *syntax.From:
-		// Create stage ID
 		imageName := inst.Image.Image
 
 		stageName := imageName
@@ -60,7 +59,6 @@ func (*DL3057Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			line: line,
 		}
 
-		// Check if this stage inherits from a good stage
 		inherited := false
 
 		for goodStage := range currentState.goodStages {
@@ -72,7 +70,6 @@ func (*DL3057Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		}
 
 		if inherited {
-			// Mark as good since it inherits from a good stage
 			currentState.goodStages[newStage] = true
 		} else {
 			// Mark as bad for now (can be updated if HEALTHCHECK found)
@@ -84,7 +81,6 @@ func (*DL3057Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		return state.ReplaceData(currentState)
 
 	case *syntax.Healthcheck:
-		// Mark current stage and all its ancestors as good
 		if currentState.currentStage != nil {
 			currentState = markGood(currentState, *currentState.currentStage)
 		}
@@ -136,7 +132,6 @@ func ancestors(bad map[stageID]bool, stage stageID) map[stageID]bool {
 func (r *DL3057Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3057State](state)
 
-	// Report failures for all bad stages
 	for badStage := range currentState.badStages {
 		state = state.AddFailure(rule.Fail(r, badStage.line))
 	}

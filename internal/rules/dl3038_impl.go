@@ -29,7 +29,6 @@ func checkDL3038(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all dnf/microdnf commands
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotDnfYesOption)
 }
 

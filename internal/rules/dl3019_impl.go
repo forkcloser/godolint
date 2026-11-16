@@ -24,7 +24,6 @@ func checkDL3019(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Skip if has cache/tmpfs mount for /var/cache/apk
 	if hasCacheOrTmpfsMount(run.Flags, "/var/cache/apk") {
 		return true
 	}
@@ -34,16 +33,13 @@ func checkDL3019(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check if any command is apk add without --no-cache
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotApkNoCacheOption)
 }
 
 func forgotApkNoCacheOption(cmd shell.Command) bool {
-	// Must be apk add
 	if !shell.CmdHasArgs("apk", []string{addArg}, cmd) {
 		return false
 	}
 
-	// Check if it has --no-cache flag
 	return !shell.HasFlag("no-cache", cmd)
 }

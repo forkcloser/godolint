@@ -26,17 +26,14 @@ func checkDL3043(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check for ONBUILD
 	if _, ok := onbuild.Inner.(*syntax.OnBuild); ok {
 		return false
 	}
 
-	// Check for ONBUILD FROM
 	if _, ok := onbuild.Inner.(*syntax.From); ok {
 		return false
 	}
 
-	// Check for ONBUILD MAINTAINER
 	if _, ok := onbuild.Inner.(*syntax.Maintainer); ok {
 		return false
 	}

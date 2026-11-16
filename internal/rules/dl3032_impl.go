@@ -38,7 +38,6 @@ func checkDL3032(instruction syntax.Instruction) bool {
 }
 
 func isYumClean(cmd shell.Command) bool {
-	// yum clean all
 	if shell.CmdHasAllArgs(yumCommand, []string{cleanArg, allArg}, cmd) {
 		return true
 	}

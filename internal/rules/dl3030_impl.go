@@ -32,17 +32,14 @@ func checkDL3030(instruction syntax.Instruction) bool {
 		return true
 	}
 
-	// Check all yum install commands
 	return !slices.ContainsFunc(parsed.PresentCommands, forgotYumYesOption)
 }
 
 func forgotYumYesOption(cmd shell.Command) bool {
-	// Must be yum install/groupinstall/localinstall
 	if !isYumInstall(cmd) {
 		return false
 	}
 
-	// Must have -y or --assumeyes flag
 	return !hasYumYesOption(cmd)
 }
 
