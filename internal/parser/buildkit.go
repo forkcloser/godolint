@@ -70,7 +70,7 @@ func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error)
 		// one without what it requires, a FROM with no image) is no
 		// Dockerfile: hadolint refuses it at parse, and so does a build.
 		// Skipping it lint-passed what neither accepts.
-		instr, err := convertNode(child)
+		instr, err := convertNode(child, result.EscapeToken)
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", child.StartLine, err)
 		}
@@ -122,8 +122,10 @@ func commentLines(dockerfile []byte, nodes []*parser.Node) []syntax.InstructionP
 	return comments
 }
 
-// convertNode converts a buildkit AST node to our Instruction type.
-func convertNode(node *parser.Node) (syntax.Instruction, error) {
+// convertNode converts a buildkit AST node to our Instruction type. escape
+// is the Dockerfile's escape character, a backslash unless its first lines
+// say otherwise (# escape=`).
+func convertNode(node *parser.Node, escape rune) (syntax.Instruction, error) {
 	switch strings.ToLower(node.Value) {
 	case "from":
 		return convertFrom(node)
@@ -134,9 +136,9 @@ func convertNode(node *parser.Node) (syntax.Instruction, error) {
 	case "add":
 		return convertAdd(node)
 	case "env":
-		return convertEnv(node)
+		return convertEnv(node, escape)
 	case "label":
-		return convertLabel(node)
+		return convertLabel(node, escape)
 	case "workdir":
 		return convertWorkdir(node)
 	case "user":
@@ -160,7 +162,7 @@ func convertNode(node *parser.Node) (syntax.Instruction, error) {
 	case "shell":
 		return convertShell(node)
 	case "onbuild":
-		return convertOnBuild(node)
+		return convertOnBuild(node, escape)
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrUnknownInstruction, node.Value)
 	}
@@ -433,12 +435,12 @@ type keyValue struct {
 // nodes a pair: the key and the value as they are written, quotes included,
 // and what stood between them, `=` or nothing for the old `key value` form,
 // whose value is the rest of the line.
-func pairs(node *parser.Node) []keyValue {
+func pairs(node *parser.Node, escape rune) []keyValue {
 	var found []keyValue
 
 	for key := node.Next; key != nil && key.Next != nil; {
 		value := key.Next
-		found = append(found, keyValue{key: pairText(key.Value), value: pairText(value.Value)})
+		found = append(found, keyValue{key: pairText(key.Value, escape), value: pairText(value.Value, escape)})
 
 		if value.Next == nil {
 			break
@@ -455,8 +457,9 @@ func pairs(node *parser.Node) []keyValue {
 // escaped inside its own kind of quotes, and a blank escaped outside any,
 // stand for themselves; any other backslash is kept. So `"/opt/bin":$PATH`
 // is `/opt/bin:$PATH`, and a value is never cut at a quote that closes
-// before its end.
-func pairText(written string) string {
+// before its end. The backslash is the Dockerfile's escape character,
+// whichever it is.
+func pairText(written string, escape rune) string {
 	var (
 		text  strings.Builder
 		quote rune
@@ -473,7 +476,7 @@ func pairText(written string) string {
 		}
 
 		switch {
-		case char == '\\' && idx+1 < len(runes) && (runes[idx+1] == escapes || quote == 0 && runes[idx+1] == '\t'):
+		case char == escape && idx+1 < len(runes) && (runes[idx+1] == escapes || quote == 0 && runes[idx+1] == '\t'):
 			idx++
 			text.WriteRune(runes[idx])
 		case quote == 0 && (char == '"' || char == '\''):
@@ -489,10 +492,10 @@ func pairText(written string) string {
 }
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
-func convertEnv(node *parser.Node) (*syntax.Env, error) {
+func convertEnv(node *parser.Node, escape rune) (*syntax.Env, error) {
 	env := &syntax.Env{}
 
-	for _, pair := range pairs(node) {
+	for _, pair := range pairs(node, escape) {
 		env.Pairs = append(env.Pairs, syntax.EnvPair{Key: pair.key, Value: pair.value})
 	}
 
@@ -500,10 +503,10 @@ func convertEnv(node *parser.Node) (*syntax.Env, error) {
 }
 
 //nolint:unparam // Uniform signature with other converters for consistent error handling
-func convertLabel(node *parser.Node) (*syntax.Label, error) {
+func convertLabel(node *parser.Node, escape rune) (*syntax.Label, error) {
 	label := &syntax.Label{}
 
-	for _, pair := range pairs(node) {
+	for _, pair := range pairs(node, escape) {
 		label.Pairs = append(label.Pairs, syntax.LabelPair{Key: pair.key, Value: pair.value})
 	}
 
@@ -621,7 +624,7 @@ func convertShell(node *parser.Node) (*syntax.Shell, error) {
 	}, nil
 }
 
-func convertOnBuild(node *parser.Node) (*syntax.OnBuild, error) {
+func convertOnBuild(node *parser.Node, escape rune) (*syntax.OnBuild, error) {
 	// ONBUILD wraps another instruction
 	// buildkit stores the full instruction in Original field (e.g., "ONBUILD FROM debian")
 	// We need to parse the inner instruction from the Original string
@@ -647,8 +650,10 @@ func convertOnBuild(node *parser.Node) (*syntax.OnBuild, error) {
 		withBodies.WriteString("\n" + heredoc.Content + heredoc.Name)
 	}
 
-	// Parse the inner instruction as a complete Dockerfile
-	innerResult, err := parser.Parse(strings.NewReader(withBodies.String()))
+	// Parse the inner instruction as a complete Dockerfile, under the escape
+	// character of the one it comes from: buildkit splits the words of an
+	// ENV or a LABEL by it.
+	innerResult, err := parser.Parse(strings.NewReader("# escape=" + string(escape) + "\n" + withBodies.String()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ONBUILD inner instruction: %w", err)
 	}
@@ -658,7 +663,7 @@ func convertOnBuild(node *parser.Node) (*syntax.OnBuild, error) {
 	}
 
 	// Convert the first (and only) child instruction
-	inner, err := convertNode(innerResult.AST.Children[0])
+	inner, err := convertNode(innerResult.AST.Children[0], escape)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ONBUILD inner instruction: %w", err)
 	}
