@@ -260,7 +260,7 @@ This is why we wrote godolint, for people doing go.
 
 ## Relationship with hadolint
 
-godolint is a faithful port of hadolint to Go. Rule declarations and tests are generated from hadolint's Haskell source, at the commit of hadolint's `master` the `hadolint` entry in [pins.yaml](./pins.yaml) pins, by digest: `just generate` fetches that source and regenerates `internal/rules`, and `just lint` fails when the committed rules and tests differ from it.
+godolint is a faithful port of hadolint to Go. Rule declarations and tests are generated from hadolint's Haskell source, at the commit of hadolint's `master` the `hadolint` entry in [pins.yaml](./pins.yaml) pins, by digest: `just converge` fetches that source and regenerates the files [.converge](./.converge) names in `internal/rules`, and `just lint` fails when the committed rules and tests differ from it.
 
 **Current status:**
 - All unit tests are automatically converted to Go tests

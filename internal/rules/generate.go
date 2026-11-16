@@ -2,7 +2,7 @@ package rules
 
 // Generate rule stubs and tests from hadolint Haskell sources.
 //
-// Run: just generate. It fetches the hadolint source pins.yaml names, by
+// Run: just converge. It fetches the hadolint source pins.yaml names, by
 // digest, into .build/, and exports HADOLINT_SRC, its root, before running
 // go generate here; the directives below read the path from that variable,
 // so a bare go generate fails on a missing source rather than reading a
@@ -18,7 +18,7 @@ package rules
 // Tests are automatically ported from hadolint's test suite.
 //
 // It also writes spdx.go, the licence identifiers DL3054 accepts, from the
-// licenses.json of the SPDX License List pins.yaml names, which just generate
+// licenses.json of the SPDX License List pins.yaml names, which just converge
 // fetches the same way and names in SPDX_LICENSES.
 
 //go:generate go run ../../hack/gen-rules/main.go $HADOLINT_SRC/src/Hadolint/Rule
