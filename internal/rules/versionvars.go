@@ -2,6 +2,7 @@ package rules
 
 import (
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/forkcloser/godolint/internal/rule"
@@ -73,8 +74,11 @@ func (v versionVars) withStage(from *syntax.From) versionVars {
 
 	inherited := map[string]bool{}
 
-	for idx, alias := range v.aliases {
-		if alias == from.Image.Image && alias != "" {
+	// The last stage under that alias, when two have it: a build takes a
+	// name for the latest stage given it. In the order of the stages, not
+	// of the map, which changes from one run to the next.
+	for _, idx := range slices.Backward(slices.Sorted(maps.Keys(v.aliases))) {
+		if alias := v.aliases[idx]; alias == from.Image.Image && alias != "" {
 			inherited = v.envs[idx]
 
 			break
