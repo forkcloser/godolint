@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/forkcloser/godolint/internal/rule"
@@ -42,62 +43,22 @@ func checkDL3018(instruction syntax.Instruction) bool {
 	return true
 }
 
+// apkAddPackages is the packages of an apk add: its arguments that are no
+// flag, without `add` and without the values of the flags that take one
+// after them (-t, --virtual, --repository, -X). A flag that carries its
+// value after `=` takes nothing after it: in `--repository=URL hugo`, hugo is
+// a package.
 func apkAddPackages(cmd shell.Command) []string {
-	// Only check apk add commands
 	if !shell.CmdHasArgs("apk", []string{addArg}, cmd) {
 		return nil
 	}
 
-	// Flags that take an argument we should skip
-	flagsWithArgs := map[string]bool{
-		"t":          true, // -t <target>
-		"virtual":    true, // --virtual <name>
-		"repository": true, // --repository <url>
-		"X":          true, // -X <url>
-	}
+	valueFlags := []string{"t", "virtual", "repository", "X"}
 
-	// Get flag IDs to skip
-	skipNextArgIDs := make(map[int]bool)
-
-	for _, flag := range cmd.Flags {
-		flagName := strings.TrimPrefix(flag.Arg, "-")
-		flagName = strings.TrimPrefix(flagName, "-")
-
-		// Check if this flag takes an argument
-		if flagsWithArgs[flagName] {
-			// Mark the next argument ID to skip
-			// The next ID after this flag's ID is the argument value
-			skipNextArgIDs[flag.ID+1] = true
-		}
-	}
-
-	// Also skip flags themselves
-	flagIDs := make(map[int]bool)
-	for _, flag := range cmd.Flags {
-		flagIDs[flag.ID] = true
-	}
-
-	// Get arguments, excluding flags and their values
-	var packages []string
-
-	for _, arg := range cmd.Arguments {
-		// Skip if it's a flag
-		if flagIDs[arg.ID] {
-			continue
-		}
-		// Skip if it's a flag argument value
-		if skipNextArgIDs[arg.ID] {
-			continue
-		}
-		// Skip "add" itself
-		if arg.Arg == addArg {
-			continue
-		}
-
-		packages = append(packages, arg.Arg)
-	}
-
-	return packages
+	return slices.DeleteFunc(
+		shell.GetArgsNoFlags(shell.DropFlagArg(valueFlags, cmd)),
+		func(arg string) bool { return arg == addArg },
+	)
 }
 
 func isApkVersionFixed(pkg string) bool {
