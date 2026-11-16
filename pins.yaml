@@ -7,6 +7,10 @@
 # committed rules and tests always match the pin. Renovate proposes master's
 # new head when it moves, red until the commits are ported (UPSTREAM.md), and
 # `limen pins refresh` recomputes the digest.
+#
+# The SPDX License List is pinned on a release: `just generate` writes
+# internal/rules/spdx.go, the identifiers DL3054 accepts, from its
+# licenses.json. Renovate proposes each new release.
 pins:
   - name: hadolint
     renovate: git-refs https://github.com/hadolint/hadolint
@@ -19,3 +23,13 @@ pins:
       commit: 1d901b9c0b0d0445d19b1a9128d89fa55bb4604e
       source: 7a4dfb1df7874032a8161ca8a508a1336b4b4eefbbd3c4810706701275a2f526
       sha256: a202e925d7fb5211ac23cc418d8d9a0509962fcedd04dc27e3ff05840d2ec0fc
+  - name: spdx-license-list
+    renovate: github-releases spdx/license-list-data
+    extract-version: ^v(?<version>.*)$
+    version: 3.29.0
+    url: https://raw.githubusercontent.com/spdx/license-list-data/v${version}/json/licenses.json
+    verify: download
+    digest:
+      version: 3.29.0
+      source: 964a8f0d657b55465a19cb9406873e3e3b81ad9cdb40d02d8498161183833ce1
+      sha256: 47d1cc681abe31166b342b6cc4aab13a6ba8ea5c48794697fe3bf8b1dbaf509a
