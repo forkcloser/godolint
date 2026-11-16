@@ -1,4 +1,8 @@
 // Package rules implements all Dockerfile linting rules ported from hadolint.
+//
+// A comment that says "Ported from" names the hadolint function or rule the
+// code is compared with, call for call: it is the map for that comparison,
+// and is kept true.
 package rules
 
 import (

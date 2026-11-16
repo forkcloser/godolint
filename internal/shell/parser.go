@@ -1,5 +1,9 @@
 // Package shell provides shell script parsing and shellcheck integration for
 // analyzing and validating the commands of RUN instructions.
+//
+// A comment that says "Ported from" names the hadolint function the code is
+// compared with, call for call: it is the map for that comparison, and is
+// kept true.
 package shell
 
 import (
