@@ -56,7 +56,18 @@ func (*DL3044Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		return state.ReplaceData(currentState)
 
 	case *syntax.Env:
-		if referencesUndefinedSibling(inst.Pairs, currentState.definedVars) {
+		reported := referencesUndefinedSibling(inst.Pairs, currentState.definedVars)
+
+		// The names are defined from here on whether the ENV is reported or
+		// not: a later ENV that gives one of them again and reads it is in
+		// order.
+		for _, pair := range inst.Pairs {
+			currentState.definedVars[pair.Key] = true
+		}
+
+		state = state.ReplaceData(currentState)
+
+		if reported {
 			return state.AddFailure(rule.CheckFailure{
 				Code:     DL3044Meta.Code,
 				Severity: DL3044Meta.Severity,
@@ -66,12 +77,7 @@ func (*DL3044Rule) Check(line int, state rule.State, instruction syntax.Instruct
 			})
 		}
 
-		// Add all new variables to defined set
-		for _, pair := range inst.Pairs {
-			currentState.definedVars[pair.Key] = true
-		}
-
-		return state.ReplaceData(currentState)
+		return state
 	}
 
 	return state
