@@ -88,8 +88,7 @@ func (*DL4006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		if len(inst.Arguments) > 0 {
 			shellCmd := strings.Join(inst.Arguments, " ")
 
-			// A non-POSIX shell (fish, powershell) has no pipefail to ask for.
-			currentState = currentState.setPipefail(isNonPosixShell(shellCmd) || hasPipefailOption(shellCmd))
+			currentState = currentState.setPipefail(isNonPosixShell(inst.Arguments[0]) || hasPipefailOption(shellCmd))
 		}
 
 		return state.ReplaceData(currentState)
@@ -117,26 +116,18 @@ func (*DL4006Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 
-// isNonPosixShell checks if shell is non-POSIX (fish, powershell, etc).
-func isNonPosixShell(shellCmd string) bool {
-	nonPosixShells := []string{
-		"/usr/bin/fish",
-		"/bin/fish",
-		"fish",
-		"/usr/bin/pwsh",
-		"/bin/pwsh",
-		"pwsh",
-		"powershell",
-		"cmd.exe",
-	}
+// isNonPosixShell reports whether program, the first word of a SHELL, is a
+// shell with no pipefail to ask for: fish, PowerShell, or Windows' cmd, under
+// any path, with or without .exe, in any case.
+func isNonPosixShell(program string) bool {
+	name := strings.ToLower(program[strings.LastIndexAny(program, `/\`)+1:])
 
-	for _, shellName := range nonPosixShells {
-		if strings.Contains(shellCmd, shellName) {
-			return true
-		}
+	switch strings.TrimSuffix(name, ".exe") {
+	case "fish", "pwsh", "powershell", "cmd":
+		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // hasPipes checks if a command contains pipes.
