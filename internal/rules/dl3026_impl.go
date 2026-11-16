@@ -2,6 +2,7 @@ package rules
 
 import (
 	"maps"
+	"regexp"
 	"strings"
 
 	"github.com/forkcloser/godolint/internal/config"
@@ -144,16 +145,21 @@ func (r *DL3026Rule) allows(image string, aliases map[string]bool) bool {
 	return r.isRegistryAllowed(dockerHub) || r.isRegistryAllowed(dockerHubSite)
 }
 
+// variableReference is a ${…} in an image's name.
+var variableReference = regexp.MustCompile(`\$\{[^}]*\}`)
+
 // imageRegistry is the registry in an image's name, and whether it has one:
-// the part before the first slash when it is a host, which a dot, a colon or
-// the name localhost makes it. Without one the image comes from Docker Hub.
+// the part before the first slash when it is a host, which a dot, the colon
+// of a port or the name localhost makes it. Without one the image comes from
+// Docker Hub. The colon inside a ${NS:-default} is no port.
 func imageRegistry(image string) (string, bool) {
 	host, _, found := strings.Cut(image, "/")
 	if !found {
 		return "", false
 	}
 
-	if strings.ContainsAny(host, ".:") || host == localhostName {
+	port := strings.Contains(variableReference.ReplaceAllString(host, ""), ":")
+	if port || strings.Contains(host, ".") || host == localhostName {
 		return host, true
 	}
 

@@ -160,6 +160,15 @@ func TestDL3026Hand(t *testing.T) {
 			[]int{2},
 		},
 		{"localhost allowed", "FROM localhost/tools", []string{"localhost"}, nil},
+		{"a namespace given by a variable with a default", "ARG NS\nFROM ${NS:-myorg}/base:1", []string{"docker.io"}, nil},
+		{
+			"copy from a namespace given by a variable with a default",
+			"FROM scratch\nCOPY --from=${NS:-myorg}/base:1 /a /b",
+			[]string{"docker.io"},
+			nil,
+		},
+		{"a variable with a default, then a port", "FROM ${HOST:-reg}:5000/img", []string{"docker.io"}, []int{1}},
+		{"a registry given by a variable whose default has a dot", "FROM ${REG:-reg.example.com}/img", []string{"docker.io"}, []int{1}},
 		{"a namespace is not a registry", "FROM library/debian", []string{"docker.io"}, nil},
 		{"a name with a dot and no slash is an image", "FROM my.image", []string{"docker.io"}, nil},
 		{
