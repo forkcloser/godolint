@@ -24,26 +24,13 @@ type dl3066State struct {
 
 // DL3066Rule checks that the user a stage ends on names a numeric id.
 // Ported from Hadolint.Rule.DL3066.
-type DL3066Rule struct{}
+type DL3066Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3066 creates the rule that a user id is numeric, or a declared ARG or ENV.
 func DL3066() rule.Rule {
-	return &DL3066Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3066Rule) Code() rule.Code {
-	return DL3066Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3066Rule) Severity() rule.Severity {
-	return DL3066Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3066Rule) Message() string {
-	return DL3066Meta.Message
+	return &DL3066Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3066Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -91,17 +78,11 @@ func (*DL3066Rule) Check(line int, state rule.State, instruction syntax.Instruct
 
 // Finalize fails the unresolved USER each remaining stage ended on, in stage
 // order.
-func (*DL3066Rule) Finalize(state rule.State) rule.State {
+func (r *DL3066Rule) Finalize(state rule.State) rule.State {
 	current := rule.Data[dl3066State](state)
 
 	for _, stage := range slices.Sorted(maps.Keys(current.pending)) {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3066Meta.Code,
-			Severity: DL3066Meta.Severity,
-			Message:  DL3066Meta.Message,
-			Line:     current.pending[stage],
-			Column:   1,
-		})
+		state = state.AddFailure(rule.Fail(r, current.pending[stage]))
 	}
 
 	return state

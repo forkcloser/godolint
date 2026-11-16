@@ -19,26 +19,13 @@ type dl3010State struct {
 }
 
 // DL3010Rule checks for using COPY instead of ADD for archive extraction.
-type DL3010Rule struct{}
+type DL3010Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3010 creates the rule for checking ADD usage for archives.
 func DL3010() rule.Rule {
-	return &DL3010Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3010Rule) Code() rule.Code {
-	return DL3010Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3010Rule) Severity() rule.Severity {
-	return DL3010Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3010Rule) Message() string {
-	return DL3010Meta.Message
+	return &DL3010Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3010Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -114,20 +101,14 @@ func (*DL3010Rule) Check(line int, state rule.State, instruction syntax.Instruct
 }
 
 // Finalize performs final checks after processing all instructions.
-func (*DL3010Rule) Finalize(state rule.State) rule.State {
+func (r *DL3010Rule) Finalize(state rule.State) rule.State {
 	currentState := rule.Data[dl3010State](state)
 
 	finalState := state
 
 	// A COPY is reported once, however many of its archives are unpacked.
 	for _, line := range slices.Sorted(maps.Keys(currentState.extracted)) {
-		finalState = finalState.AddFailure(rule.CheckFailure{
-			Code:     DL3010Meta.Code,
-			Severity: DL3010Meta.Severity,
-			Message:  DL3010Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		finalState = finalState.AddFailure(rule.Fail(r, line))
 	}
 
 	return finalState

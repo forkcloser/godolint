@@ -11,36 +11,25 @@ import (
 
 // DL3055Rule checks that git hash labels are valid.
 type DL3055Rule struct {
+	rule.StatefulRuleBase
+
 	cfg *config.Config
 }
 
 // DL3055 creates the rule for checking git hash labels.
 func DL3055() rule.Rule {
 	return &DL3055Rule{
-		cfg: config.Default(),
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3055Meta),
+		cfg:              config.Default(),
 	}
 }
 
 // DL3055WithConfig creates the rule with custom configuration.
 func DL3055WithConfig(cfg *config.Config) rule.Rule {
 	return &DL3055Rule{
-		cfg: cfg,
+		StatefulRuleBase: rule.NewStatefulRuleBase(DL3055Meta),
+		cfg:              cfg,
 	}
-}
-
-// Code returns the rule code.
-func (*DL3055Rule) Code() rule.Code {
-	return DL3055Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3055Rule) Severity() rule.Severity {
-	return DL3055Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3055Rule) Message() string {
-	return DL3055Meta.Message
 }
 
 // InitialState returns the initial state for this rule.
@@ -58,21 +47,10 @@ func (r *DL3055Rule) Check(line int, state rule.State, instruction syntax.Instru
 	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeGitHash }
 
 	for _, key := range failingLabels(label.Pairs, ofKind, isValidGitHash) {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3055Meta.Code,
-			Severity: DL3055Meta.Severity,
-			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-			Message: fmt.Sprintf("Label `%s` is not a valid git hash.", key),
-			Line:    line,
-			Column:  1, // Hardcoded to 1 (matches hadolint)
-		})
+		//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+		state = state.AddFailure(labelFailure(r, line, fmt.Sprintf("Label `%s` is not a valid git hash.", key)))
 	}
 
-	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3055Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

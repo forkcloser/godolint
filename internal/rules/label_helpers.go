@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
@@ -21,4 +22,13 @@ func failingLabels(pairs []syntax.LabelPair, wanted func(key string) bool, valid
 	}
 
 	return slices.Sorted(maps.Keys(failing))
+}
+
+// labelFailure is the failure a label rule reports at a line, under the
+// message that names the label.
+func labelFailure(r rule.Rule, line int, message string) rule.CheckFailure {
+	failure := rule.Fail(r, line)
+	failure.Message = message
+
+	return failure
 }

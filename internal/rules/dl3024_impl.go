@@ -14,26 +14,13 @@ type dl3024State struct {
 
 // DL3024Rule checks that FROM aliases are unique.
 // Ported from Hadolint.Rule.DL3024.
-type DL3024Rule struct{}
+type DL3024Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3024 creates the rule for checking FROM aliases are unique.
 func DL3024() rule.Rule {
-	return &DL3024Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3024Rule) Code() rule.Code {
-	return DL3024Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3024Rule) Severity() rule.Severity {
-	return DL3024Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3024Rule) Message() string {
-	return DL3024Meta.Message
+	return &DL3024Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3024Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -45,7 +32,7 @@ func (*DL3024Rule) InitialState() rule.State {
 
 // Check tracks FROM aliases and reports duplicates.
 // Ported from the check function in DL3024.hs.
-func (*DL3024Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3024Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	from, ok := instruction.(*syntax.From)
 	if !ok {
 		return state
@@ -62,13 +49,7 @@ func (*DL3024Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	// Check if alias already seen
 	if _, exists := currentState.aliases[alias]; exists {
 		// Duplicate alias - fail
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL3024Meta.Code,
-			Severity: DL3024Meta.Severity,
-			Message:  DL3024Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(r, line))
 	}
 
 	// Remember this alias
@@ -79,9 +60,4 @@ func (*DL3024Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	currentState.aliases = newAliases
 
 	return state.ReplaceData(currentState)
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3024Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }

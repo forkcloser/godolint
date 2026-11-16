@@ -14,26 +14,13 @@ type dl3044State struct {
 }
 
 // DL3044Rule checks for ENV self-reference.
-type DL3044Rule struct{}
+type DL3044Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3044 creates the rule for checking ENV self-reference.
 func DL3044() rule.Rule {
-	return &DL3044Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3044Rule) Code() rule.Code {
-	return DL3044Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3044Rule) Severity() rule.Severity {
-	return DL3044Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3044Rule) Message() string {
-	return DL3044Meta.Message
+	return &DL3044Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3044Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -45,7 +32,7 @@ func (*DL3044Rule) InitialState() rule.State {
 
 // Check flags ENV statements that reference a variable defined in the same
 // statement.
-func (*DL3044Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3044Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl3044State](state)
 
 	switch inst := instruction.(type) {
@@ -68,13 +55,7 @@ func (*DL3044Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		state = state.ReplaceData(currentState)
 
 		if reported {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL3044Meta.Code,
-				Severity: DL3044Meta.Severity,
-				Message:  DL3044Meta.Message,
-				Line:     line,
-				Column:   1, // Hardcoded to 1 (matches hadolint)
-			})
+			return state.AddFailure(rule.Fail(r, line))
 		}
 
 		return state
@@ -102,11 +83,6 @@ func referencesUndefinedSibling(pairs []syntax.EnvPair, defined map[string]bool)
 	}
 
 	return false
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3044Rule) Finalize(state rule.State) rule.State {
-	return state
 }
 
 // referencesVar checks if a value string references a variable.

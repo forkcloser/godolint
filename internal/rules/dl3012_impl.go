@@ -14,26 +14,13 @@ const (
 
 // DL3012Rule is a stateful rule that tracks HEALTHCHECK instructions.
 // Ported from Hadolint.Rule.DL3012.
-type DL3012Rule struct{}
+type DL3012Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3012 creates the rule for checking multiple HEALTHCHECK instructions.
 func DL3012() rule.Rule {
-	return &DL3012Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3012Rule) Code() rule.Code {
-	return DL3012Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3012Rule) Severity() rule.Severity {
-	return DL3012Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3012Rule) Message() string {
-	return DL3012Meta.Message
+	return &DL3012Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3012Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -43,7 +30,7 @@ func (*DL3012Rule) InitialState() rule.State {
 
 // Check implements the stateful check for multiple HEALTHCHECK instructions.
 // Ported from the check function in DL3012.hs.
-func (*DL3012Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3012Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noHealthcheck)
@@ -59,19 +46,8 @@ func (*DL3012Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		}
 
 		// Second HEALTHCHECK in this stage - add failure
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL3012Meta.Code,
-			Severity: DL3012Meta.Severity,
-			Message:  DL3012Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(r, line))
 	}
 
 	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3012Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }

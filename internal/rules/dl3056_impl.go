@@ -12,32 +12,19 @@ import (
 // DL3056Rule checks that a label the schema declares as a semantic version
 // holds one. Ported from Hadolint.Rule.DL3056.
 type DL3056Rule struct {
+	rule.StatefulRuleBase
+
 	cfg *config.Config
 }
 
 // DL3056 creates the rule with the default configuration.
 func DL3056() rule.Rule {
-	return &DL3056Rule{cfg: config.Default()}
+	return &DL3056Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3056Meta), cfg: config.Default()}
 }
 
 // DL3056WithConfig creates the rule with custom configuration.
 func DL3056WithConfig(cfg *config.Config) rule.Rule {
-	return &DL3056Rule{cfg: cfg}
-}
-
-// Code returns the rule code.
-func (*DL3056Rule) Code() rule.Code {
-	return DL3056Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3056Rule) Severity() rule.Severity {
-	return DL3056Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3056Rule) Message() string {
-	return DL3056Meta.Message
+	return &DL3056Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3056Meta), cfg: cfg}
 }
 
 // InitialState returns the initial state for this rule.
@@ -56,21 +43,12 @@ func (r *DL3056Rule) Check(line int, state rule.State, instruction syntax.Instru
 	ofKind := func(key string) bool { return r.cfg.LabelSchema[key] == config.LabelTypeSemVer }
 
 	for _, key := range failingLabels(label.Pairs, ofKind, semanticVersion.MatchString) {
-		state = state.AddFailure(rule.CheckFailure{
-			Code:     DL3056Meta.Code,
-			Severity: DL3056Meta.Severity,
-			//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
-			Message: fmt.Sprintf("Label `%s` does not conform to semantic versioning.", key),
-			Line:    line,
-			Column:  1, // Hardcoded to 1 (matches hadolint)
-		})
+		//nolint:gocritic // sprintfQuotedString: hadolint prints the key raw; %#q would escape one holding a backquote
+		state = state.AddFailure(
+			labelFailure(r, line, fmt.Sprintf("Label `%s` does not conform to semantic versioning.", key)),
+		)
 	}
 
-	return state
-}
-
-// Finalize performs no final check.
-func (*DL3056Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

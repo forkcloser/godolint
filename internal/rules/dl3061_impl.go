@@ -7,26 +7,13 @@ import (
 
 // DL3061Rule checks that Dockerfile begins with FROM, ARG, or comment.
 // Ported from Hadolint.Rule.DL3061.
-type DL3061Rule struct{}
+type DL3061Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3061 creates the rule for checking instruction order.
 func DL3061() rule.Rule {
-	return &DL3061Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3061Rule) Code() rule.Code {
-	return DL3061Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3061Rule) Severity() rule.Severity {
-	return DL3061Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3061Rule) Message() string {
-	return DL3061Meta.Message
+	return &DL3061Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3061Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -36,7 +23,7 @@ func (*DL3061Rule) InitialState() rule.State {
 
 // Check ensures Dockerfile starts with FROM, ARG, or comment.
 // Ported from the check function in DL3061.hs.
-func (*DL3061Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3061Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	seenFrom := rule.Data[bool](state)
 
 	// Once we've seen FROM, everything is OK
@@ -60,16 +47,5 @@ func (*DL3061Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	}
 
 	// Any other instruction before FROM - fail
-	return state.AddFailure(rule.CheckFailure{
-		Code:     DL3061Meta.Code,
-		Severity: DL3061Meta.Severity,
-		Message:  DL3061Meta.Message,
-		Line:     line,
-		Column:   1, // Hardcoded to 1 (matches hadolint)
-	})
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3061Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
+	return state.AddFailure(rule.Fail(r, line))
 }

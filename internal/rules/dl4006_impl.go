@@ -46,26 +46,13 @@ func (s dl4006State) enterStage(image syntax.BaseImage) dl4006State {
 }
 
 // DL4006Rule checks for pipefail with pipes.
-type DL4006Rule struct{}
+type DL4006Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL4006 creates the rule for checking pipefail.
 func DL4006() rule.Rule {
-	return &DL4006Rule{}
-}
-
-// Code returns the rule code.
-func (*DL4006Rule) Code() rule.Code {
-	return DL4006Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL4006Rule) Severity() rule.Severity {
-	return DL4006Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL4006Rule) Message() string {
-	return DL4006Meta.Message
+	return &DL4006Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL4006Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -77,7 +64,7 @@ func (*DL4006Rule) InitialState() rule.State {
 
 // Check flags RUN instructions that pipe without `-o pipefail` set by a
 // preceding SHELL instruction.
-func (*DL4006Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL4006Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentState := rule.Data[dl4006State](state)
 
 	switch inst := instruction.(type) {
@@ -96,23 +83,12 @@ func (*DL4006Rule) Check(line int, state rule.State, instruction syntax.Instruct
 	case *syntax.Run:
 		// If pipefail is not set and command has pipes, fail
 		if !currentState.pipefailSet && hasPipes(inst.Command) {
-			return state.AddFailure(rule.CheckFailure{
-				Code:     DL4006Meta.Code,
-				Severity: DL4006Meta.Severity,
-				Message:  DL4006Meta.Message,
-				Line:     line,
-				Column:   1, // Hardcoded to 1 (matches hadolint)
-			})
+			return state.AddFailure(rule.Fail(r, line))
 		}
 
 		return state
 	}
 
-	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL4006Rule) Finalize(state rule.State) rule.State {
 	return state
 }
 

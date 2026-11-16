@@ -12,26 +12,13 @@ import (
 // DL3041Rule checks that dnf and microdnf install pinned versions. Ported
 // from Hadolint.Rule.DL3041: a version written through a variable is pinned
 // when the variable is an ENV of the stage or an ARG, which the rule tracks.
-type DL3041Rule struct{}
+type DL3041Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3041 creates the rule for dnf version pinning.
 func DL3041() rule.Rule {
-	return &DL3041Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3041Rule) Code() rule.Code {
-	return DL3041Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3041Rule) Severity() rule.Severity {
-	return DL3041Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3041Rule) Message() string {
-	return DL3041Meta.Message
+	return &DL3041Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3041Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -41,16 +28,11 @@ func (*DL3041Rule) InitialState() rule.State {
 
 // Check records ENV, ARG and FROM, and fails a RUN whose packages or
 // modules are not all pinned.
-func (*DL3041Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
-	return checkPinnedVersions(DL3041Meta, line, state, instruction,
+func (r *DL3041Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+	return checkPinnedVersions(r, line, state, instruction,
 		func(vars versionVars, parsed *shell.ParsedShell) bool {
 			return dnfPackagesPinned(vars, parsed) && dnfModulesPinned(parsed)
 		})
-}
-
-// Finalize performs no final check.
-func (*DL3041Rule) Finalize(state rule.State) rule.State {
-	return state
 }
 
 func dnfPackagesPinned(vars versionVars, parsed *shell.ParsedShell) bool {

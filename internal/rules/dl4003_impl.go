@@ -14,26 +14,13 @@ const (
 
 // DL4003Rule is a stateful rule that tracks CMD instructions.
 // Ported from Hadolint.Rule.DL4003.
-type DL4003Rule struct{}
+type DL4003Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL4003 creates the rule for checking multiple CMD instructions.
 func DL4003() rule.Rule {
-	return &DL4003Rule{}
-}
-
-// Code returns the rule code.
-func (*DL4003Rule) Code() rule.Code {
-	return DL4003Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL4003Rule) Severity() rule.Severity {
-	return DL4003Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL4003Rule) Message() string {
-	return DL4003Meta.Message
+	return &DL4003Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL4003Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -43,7 +30,7 @@ func (*DL4003Rule) InitialState() rule.State {
 
 // Check implements the stateful check for multiple CMD instructions.
 // Ported from the check function in DL4003.hs.
-func (*DL4003Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL4003Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	// Reset state on each FROM (new stage)
 	if _, ok := instruction.(*syntax.From); ok {
 		return state.ReplaceData(noCmd)
@@ -59,19 +46,8 @@ func (*DL4003Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		}
 
 		// Second CMD in this stage - add failure
-		return state.AddFailure(rule.CheckFailure{
-			Code:     DL4003Meta.Code,
-			Severity: DL4003Meta.Severity,
-			Message:  DL4003Meta.Message,
-			Line:     line,
-			Column:   1, // Hardcoded to 1 (matches hadolint)
-		})
+		return state.AddFailure(rule.Fail(r, line))
 	}
 
 	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL4003Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }

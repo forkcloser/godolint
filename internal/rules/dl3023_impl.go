@@ -7,26 +7,13 @@ import (
 
 // DL3023Rule checks that COPY --from doesn't reference its own FROM alias.
 // Ported from Hadolint.Rule.DL3023.
-type DL3023Rule struct{}
+type DL3023Rule struct {
+	rule.StatefulRuleBase
+}
 
 // DL3023 creates the rule for checking COPY --from self-reference.
 func DL3023() rule.Rule {
-	return &DL3023Rule{}
-}
-
-// Code returns the rule code.
-func (*DL3023Rule) Code() rule.Code {
-	return DL3023Meta.Code
-}
-
-// Severity returns the rule severity.
-func (*DL3023Rule) Severity() rule.Severity {
-	return DL3023Meta.Severity
-}
-
-// Message returns the rule message.
-func (*DL3023Rule) Message() string {
-	return DL3023Meta.Message
+	return &DL3023Rule{StatefulRuleBase: rule.NewStatefulRuleBase(DL3023Meta)}
 }
 
 // InitialState returns the initial state for this rule.
@@ -36,7 +23,7 @@ func (*DL3023Rule) InitialState() rule.State {
 
 // Check tracks current stage alias and validates COPY --from doesn't self-reference.
 // Ported from the check function in DL3023.hs.
-func (*DL3023Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
+func (r *DL3023Rule) Check(line int, state rule.State, instruction syntax.Instruction) rule.State {
 	currentAlias := rule.Data[string](state)
 
 	// Remember current FROM alias
@@ -53,21 +40,10 @@ func (*DL3023Rule) Check(line int, state rule.State, instruction syntax.Instruct
 		if copyInstr.From != nil && currentAlias != "" {
 			if *copyInstr.From == currentAlias {
 				// Self-reference - fail
-				return state.AddFailure(rule.CheckFailure{
-					Code:     DL3023Meta.Code,
-					Severity: DL3023Meta.Severity,
-					Message:  DL3023Meta.Message,
-					Line:     line,
-					Column:   1, // Hardcoded to 1 (matches hadolint)
-				})
+				return state.AddFailure(rule.Fail(r, line))
 			}
 		}
 	}
 
 	return state
-}
-
-// Finalize performs final checks after processing all instructions.
-func (*DL3023Rule) Finalize(state rule.State) rule.State {
-	return state // No finalization needed
 }
