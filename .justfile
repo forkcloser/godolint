@@ -8,27 +8,37 @@ test: do::test::go::unit do::test::go::race do::test::go::cover
 # The security workflow runs `just security`.
 security: do::security::default
 
-# Regenerate internal/rules from the hadolint source pins.yaml pins: the
-# DLxxxx metadata files and the ported tests are rewritten, stubs are written
-# for rules with no implementation. See internal/rules/generate.go.
+# Regenerate internal/rules from the sources pins.yaml pins. From hadolint's:
+# the DLxxxx metadata files and the ported tests are rewritten, stubs are
+# written for rules with no implementation. From the SPDX License List: the
+# identifiers DL3054 accepts. See internal/rules/generate.go.
 generate:
     #!/usr/bin/env bash
     set -euo pipefail
+    # fetch <pin> <file>: the pin's artifact as .build/<pin>/<file>, held to
+    # the pin's digest whether it was just downloaded or already there.
+    fetch() {
+      local url sum dl
+      url="$(limen pins get "$1" url)"
+      sum="$(limen pins get "$1" sha256)"
+      dl=".build/$1/$2"
+      mkdir -p ".build/$1"
+      if [ ! -f "${dl}" ]; then
+        curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 3 -o "${dl}.part" "${url}"
+        mv "${dl}.part" "${dl}"
+      fi
+      echo "${sum}  ${dl}" | sha256sum -c - >/dev/null
+    }
     commit="$(limen pins get hadolint commit)"
-    url="$(limen pins get hadolint url)"
-    sum="$(limen pins get hadolint sha256)"
-    dl=".build/hadolint/hadolint-${commit}.tar.gz"
     src=".build/hadolint/hadolint-${commit}"
-    mkdir -p .build/hadolint
-    if [ ! -f "${dl}" ]; then
-      curl --proto '=https' --tlsv1.2 -fsSL --retry 5 --retry-delay 3 -o "${dl}.part" "${url}"
-      mv "${dl}.part" "${dl}"
-    fi
-    echo "${sum}  ${dl}" | sha256sum -c - >/dev/null
+    fetch hadolint "hadolint-${commit}.tar.gz"
     if [ ! -d "${src}" ]; then
-      tar -xzf "${dl}" -C .build/hadolint
+      tar -xzf "${src}.tar.gz" -C .build/hadolint
     fi
-    HADOLINT_SRC="${PWD}/${src}" go generate ./internal/rules
+    spdx="licenses-$(limen pins get spdx-license-list version).json"
+    fetch spdx-license-list "${spdx}"
+    HADOLINT_SRC="${PWD}/${src}" SPDX_LICENSES="${PWD}/.build/spdx-license-list/${spdx}" \
+      go generate ./internal/rules
 
 # The committed rules and tests match the pinned hadolint: regenerate, and
 # fail on any difference, a changed file or a new one.

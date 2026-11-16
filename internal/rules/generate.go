@@ -16,6 +16,11 @@ package rules
 //
 // Rule stubs include placeholder check functions that need manual implementation.
 // Tests are automatically ported from hadolint's test suite.
+//
+// It also writes spdx.go, the licence identifiers DL3054 accepts, from the
+// licenses.json of the SPDX License List pins.yaml names, which just generate
+// fetches the same way and names in SPDX_LICENSES.
 
 //go:generate go run ../../hack/gen-rules/main.go $HADOLINT_SRC/src/Hadolint/Rule
 //go:generate go run ../../hack/gen-tests $HADOLINT_SRC/test/Hadolint/Rule
+//go:generate go run ../../hack/gen-spdx $SPDX_LICENSES
