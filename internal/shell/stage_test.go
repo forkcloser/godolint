@@ -193,6 +193,35 @@ ONBUILD RUN echo $unquoted`,
 			fails: true,
 		},
 		{
+			name: "A shell named without its path is clean on a clean RUN",
+			dockerfile: `SHELL ["bash", "-o", "pipefail", "-c"]
+RUN echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell named without its path is that shell",
+			dockerfile: `SHELL ["bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell named without its path is still checked",
+			dockerfile: `SHELL ["bash", "-c"]
+RUN echo $MISSING_QUOTES`,
+			fails: true,
+		},
+		{
+			name:       "A bashism under the default shell",
+			dockerfile: `RUN [[ -f /x ]] && echo ok`,
+			fails:      true,
+		},
+		{
+			name: "A shell pragma of one word is the shell",
+			dockerfile: `# hadolint shell=bash
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
 			name: "A clean RUN in an ONBUILD is clean",
 			dockerfile: `FROM debian
 ONBUILD RUN echo hello`,
