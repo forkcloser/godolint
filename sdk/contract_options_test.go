@@ -502,3 +502,49 @@ func TestContractShellcheckThatDidNotScanIsAnError(t *testing.T) {
 
 	notScanned("no shellcheck on PATH", sdk.New(sdk.WithShellcheck()))
 }
+
+// TestContractShellcheckFindingStandsOnItsLine: what shellcheck finds in a
+// heredoc's body is reported on the line of the Dockerfile it stands on,
+// whatever tabs <<- strips and whatever blank lines the body opens with;
+// in a RUN continued over several lines, on the RUN's line. An ignore
+// pragma above the RUN covers every line of it, and not the instruction
+// after.
+func TestContractShellcheckFindingStandsOnItsLine(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("shellcheck"); err != nil {
+		t.Skip("no shellcheck on PATH")
+	}
+
+	// SC2164: a cd that may fail. DL3003 reports the same cd, on the RUN's line.
+	for name, tc := range map[string]struct {
+		dockerfile string
+		lines      []int
+	}{
+		"a body":                         {"FROM debian:12\nRUN <<EOF\necho ok\n\tcd /app\nEOF\n", []int{4}},
+		"a body with its tabs stripped":  {"FROM debian:12\nRUN <<-EOF\n\techo ok\n\t\tcd /app\n\tEOF\n", []int{4}},
+		"a body opening with two blanks": {"FROM debian:12\nRUN <<EOF\n\n\necho ok\ncd /app\nEOF\n", []int{6}},
+		"the body's first line":          {"FROM debian:12\nRUN <<EOF\ncd /app\nEOF\n", []int{3}},
+		"two heredocs, no script":        {"FROM debian:12\nRUN <<ONE <<TWO\ncd /app\nONE\ncd /app\nTWO\n", nil},
+		"a command before the heredoc":   {"FROM debian:12\nRUN cd /app; cat <<EOF > motd\nhello\nEOF\n", []int{2}},
+		"a continued RUN":                {"FROM debian:12\nRUN echo ok && \\\n    cd /app\n", []int{2}},
+		"a pragma above the RUN": {
+			"FROM debian:12\n# hadolint ignore=SC2164\nRUN <<EOF\necho ok\necho ok\ncd /app\nEOF\n", nil,
+		},
+		"the pragma stops at the RUN's last line": {
+			"FROM debian:12\n# hadolint ignore=SC2164\nRUN <<EOF\ncd /app\nEOF\nRUN <<EOF\ncd /app\nEOF\n", []int{7},
+		},
+	} {
+		var lines []int
+
+		for _, violation := range lint(t, tc.dockerfile, sdk.WithShellcheck()).Violations {
+			if violation.Code == "SC2164" {
+				lines = append(lines, violation.Line)
+			}
+		}
+
+		if !slices.Equal(lines, tc.lines) {
+			t.Errorf("%s: SC2164 on lines %v, want %v", name, lines, tc.lines)
+		}
+	}
+}

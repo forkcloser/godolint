@@ -74,7 +74,7 @@ type Shellchecker interface {
 	// Check runs shellcheck on a shell script with the given options.
 	// Returns violations found by shellcheck. Each failure's Line is the
 	// 0-based line offset within the script (0 for its first line); the
-	// caller anchors it to the Dockerfile line of the instruction.
+	// caller anchors it to the Dockerfile line the script starts on.
 	Check(script string, opts Opts) ([]rule.CheckFailure, error)
 }
 
@@ -235,10 +235,9 @@ func said(err error, stderr *bytes.Buffer) error {
 // convertFindings turns shellcheck's report into rule failures. shellcheck
 // reports positions within the synthesized script; subtracting the header
 // (shebang + exports) gives the 0-based offset within the original script,
-// which the rule anchors to the instruction's Dockerfile line. Today the
-// parser collapses a RUN command onto one line, so the offset is 0 in
-// practice — but any multi-line command (e.g. future heredoc support) maps
-// correctly.
+// which the rule anchors to the Dockerfile line the script starts on. Only
+// a heredoc's body has lines of its own: a continued RUN is one line by the
+// time it is read, and its findings are all on the instruction's line.
 func convertFindings(scResults []shellcheckOutput, opts Opts) []rule.CheckFailure {
 	headerLines := 1 + len(opts.EnvVars)
 
@@ -250,21 +249,15 @@ func convertFindings(scResults []shellcheckOutput, opts Opts) []rule.CheckFailur
 			// an export) has no counterpart in the script — pin to its start.
 			0)
 
-		// Beyond the first line, the script's lines are verbatim, so the
-		// column is exact. The first line sits behind the instruction keyword
-		// and collapsed continuations, so its column is meaningless there —
-		// keep 1 (matches hadolint).
-		column := 1
-		if offset > 0 {
-			column = finding.Column
-		}
-
+		// The column is 1, as for every rule and as in hadolint: shellcheck's
+		// counts a tab for eight, and knows nothing of the instruction's
+		// keyword, of collapsed continuations or of the tabs <<- strips.
 		failures = append(failures, rule.CheckFailure{
 			Code:     rule.Code(fmt.Sprintf("SC%d", finding.Code)),
 			Severity: convertSeverity(finding.Level),
 			Message:  finding.Message,
-			Line:     offset, // Anchored to the instruction line by the rule
-			Column:   column,
+			Line:     offset, // Anchored to the script's first line by the rule
+			Column:   1,
 		})
 	}
 
@@ -465,12 +458,13 @@ func (r *ShellcheckRule) Check(line int, state rule.State, instruction syntax.In
 			return state.Stop(&ScanError{Line: line, Err: err})
 		}
 
-		// Add all shellcheck violations to state, anchored to the RUN's line
-		// (each violation carries its 0-based offset within the command).
+		// Add all shellcheck violations to state, anchored to the line the
+		// script starts on (each violation carries its 0-based offset within
+		// the command).
 		newState := state
 
 		for _, v := range violations {
-			v.Line += line
+			v.Line += line + instr.ScriptOffset
 			newState = newState.AddFailure(v)
 		}
 
