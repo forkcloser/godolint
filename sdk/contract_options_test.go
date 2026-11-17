@@ -413,3 +413,43 @@ func TestContractShellcheckCodes(t *testing.T) {
 		t.Errorf("SC2086 disabled in the configuration file named: %v", configured)
 	}
 }
+
+// TestContractShellcheckHoldsWhereverItStands: shellcheck is added to the
+// rules chosen whether WithShellcheck comes before or after the option that
+// chooses them, and once: given again, it reports each finding once, with
+// the options of the last.
+func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("shellcheck"); err != nil {
+		t.Skip("no shellcheck on PATH")
+	}
+
+	// SC2086: an unquoted variable.
+	const dockerfile = "FROM debian:12\nRUN echo $HOME\n"
+
+	leftOut := sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2086"))
+
+	for name, tc := range map[string]struct {
+		opts []sdk.Option
+		want int
+	}{
+		"before the rule set":           {[]sdk.Option{sdk.WithShellcheck(), sdk.WithRuleSet(sdk.RuleSetRecommended)}, 1},
+		"after the rule set":            {[]sdk.Option{sdk.WithRuleSet(sdk.RuleSetRecommended), sdk.WithShellcheck()}, 1},
+		"given twice":                   {[]sdk.Option{sdk.WithShellcheck(), sdk.WithShellcheck()}, 1},
+		"the last leaves the check out": {[]sdk.Option{sdk.WithShellcheck(), leftOut}, 0},
+		"the last leaves nothing out":   {[]sdk.Option{leftOut, sdk.WithShellcheck()}, 1},
+	} {
+		found := 0
+
+		for _, violation := range lint(t, dockerfile, tc.opts...).Violations {
+			if violation.Code == "SC2086" {
+				found++
+			}
+		}
+
+		if found != tc.want {
+			t.Errorf("%s: SC2086 reported %d times, want %d", name, found, tc.want)
+		}
+	}
+}
