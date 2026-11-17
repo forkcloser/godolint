@@ -1,8 +1,10 @@
 package shell_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/forkcloser/godolint/internal/rule"
@@ -318,11 +320,52 @@ func TestBinaryShellchecker_LeavesNoScriptBehind(t *testing.T) {
 	// No shellcheck to run.
 	t.Setenv("PATH", t.TempDir())
 
-	if _, err := checker.Check("echo $FOO", shell.DefaultOpts()); err == nil {
-		t.Fatal("the premise: with no shellcheck on PATH, Check fails")
+	// Nothing ran, so nothing wrote on a standard error: the error ends
+	// with its reason, not with a colon and nothing after.
+	_, err := checker.Check("echo $FOO", shell.DefaultOpts())
+	if err == nil || strings.HasSuffix(strings.TrimSpace(err.Error()), ":") {
+		t.Fatalf("with no shellcheck on PATH, Check returns the error %v", err)
 	}
 
 	if left := scripts(); len(left) != 0 {
 		t.Errorf("after a shellcheck that could not run: %v left in the temporary directory", left)
+	}
+}
+
+// TestBinaryShellchecker_AScanThatDidNotHappenIsAnError: shellcheck exits 0
+// or 1 for a scan; given an exclusion that is no check, it refuses its
+// options, exits 3 and scans nothing, which is an error and not a script
+// with nothing in it. The rule stops on it, at the RUN's line, and not on a
+// RUN shellcheck is not shown.
+func TestBinaryShellchecker_AScanThatDidNotHappenIsAnError(t *testing.T) {
+	t.Parallel()
+
+	checker := shell.NewBinaryShellchecker()
+	checker.Exclude = []string{"bogus"}
+
+	failures, err := checker.Check("echo $FOO", shell.DefaultOpts())
+	if err == nil || failures != nil || !strings.Contains(err.Error(), "exit status 3") {
+		t.Fatalf("Check() = %v, %v; want no failure and an error naming exit status 3", failures, err)
+	}
+
+	// shellcheck says why on its standard error, and the error says it after.
+	if strings.HasSuffix(err.Error(), "exit status 3") {
+		t.Errorf("Check() error %q; want what shellcheck wrote on its standard error after the status", err)
+	}
+
+	scRule := shell.NewShellcheckRule(checker)
+
+	state := scRule.Check(1, scRule.InitialState(), &syntax.From{Image: syntax.BaseImage{Image: "debian"}})
+
+	state = scRule.Check(2, state, &syntax.Run{Command: `["echo", "$FOO"]`, IsJSON: true})
+	if state.Err != nil {
+		t.Fatalf("an exec form, which no shellcheck reads: %v", state.Err)
+	}
+
+	state = scRule.Check(4, state, &syntax.Run{Command: "echo $FOO"})
+
+	var scan *shell.ScanError
+	if !errors.As(state.Err, &scan) || scan.Line != 4 || !strings.Contains(scan.Error(), "line 4") {
+		t.Errorf("the rule's state says %v; want a *ScanError at line 4", state.Err)
 	}
 }

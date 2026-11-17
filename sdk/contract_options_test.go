@@ -453,3 +453,39 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 		}
 	}
 }
+
+// TestContractShellcheckThatDidNotScanIsAnError: a RUN shellcheck was to
+// scan and did not is a *ShellcheckError naming its line, and no Result:
+// with an option shellcheck does not take, and with no shellcheck on PATH.
+// A Dockerfile with no RUN for shellcheck to read is linted either way.
+func TestContractShellcheckThatDidNotScanIsAnError(t *testing.T) {
+	const (
+		dockerfile = "FROM debian:12\n\nRUN echo $HOME\n"
+		noShell    = "FROM debian:12\nRUN [\"true\"]\n"
+	)
+
+	notScanned := func(name string, linter *sdk.Linter) {
+		t.Helper()
+
+		var scan *sdk.ShellcheckError
+
+		result, err := linter.Lint(t.Context(), []byte(dockerfile))
+		if result != nil || !errors.As(err, &scan) || scan.Line != 3 || scan.Err == nil {
+			t.Errorf("%s: %v, %v; want a *ShellcheckError at line 3 and no result", name, result, err)
+		}
+
+		if result, err := linter.Lint(t.Context(), []byte(noShell)); err != nil || result == nil {
+			t.Errorf("%s, nothing for shellcheck to read: %v, %v; want a result", name, result, err)
+		}
+	}
+
+	if _, err := exec.LookPath("shellcheck"); err == nil {
+		// An exclusion that is no check: shellcheck exits 3 and scans nothing.
+		notScanned("an option shellcheck does not take",
+			sdk.New(sdk.WithShellcheck(sdk.WithShellcheckExclusions("bogus"))))
+	}
+
+	t.Setenv("PATH", t.TempDir())
+
+	notScanned("no shellcheck on PATH", sdk.New(sdk.WithShellcheck()))
+}

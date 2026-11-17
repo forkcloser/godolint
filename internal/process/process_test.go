@@ -1,6 +1,7 @@
 package process_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -64,8 +65,13 @@ func TestRunAppliesARuleInsideOnBuildAsHadolintComposesIt(t *testing.T) {
 		"a rule that says so of itself":          {saysSo{seen{code: "SHELLCHECK"}}, []string{written, wrapped}},
 		"a rule of no known code":                {seen{code: "DL9999"}, []string{written}},
 	} {
+		failures, err := process.NewProcessor([]rule.Rule{tc.applied}).Run(instructions)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		var got []string
-		for _, failure := range process.NewProcessor([]rule.Rule{tc.applied}).Run(instructions) {
+		for _, failure := range failures {
 			got = append(got, failure.Message)
 		}
 
@@ -132,12 +138,17 @@ func TestRunDoesNotRunAnIgnoredRule(t *testing.T) {
 			ignored[code] = true
 		}
 
-		var got []string
-		for _, failure := range process.NewProcessor([]rule.Rule{
+		failures, err := process.NewProcessor([]rule.Rule{
 			counted{code: "DL0001", reports: []rule.Code{"DL0001"}, shown: &off},
 			counted{code: "DL0002", reports: []rule.Code{"DL0002"}, shown: &on},
 			counted{code: "SHELLCHECK", reports: []rule.Code{"SC1", "SC2"}, shown: &sub},
-		}).WithIgnored(ignored).Run(instructions) {
+		}).WithIgnored(ignored).Run(instructions)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var got []string
+		for _, failure := range failures {
 			got = append(got, string(failure.Code))
 		}
 
@@ -176,5 +187,68 @@ func TestSettleOrdersTheFailures(t *testing.T) {
 
 	if order := strings.Join(got, ""); order != "abcdefgh" {
 		t.Errorf("settled in the order %q, want %q", order, "abcdefgh")
+	}
+}
+
+// halts is a rule that cannot do its work once it is shown the instruction
+// named, and counts what it is shown.
+type halts struct {
+	seen
+
+	at    string
+	shown *int
+}
+
+var errHalted = errors.New("halted")
+
+func (halts) InOnBuild() bool { return true }
+
+func (r halts) Check(_ int, state rule.State, instruction syntax.Instruction) rule.State {
+	*r.shown++
+
+	if instruction.Name() == r.at {
+		// What a rule does to its state after it stopped keeps the error.
+		return state.Stop(errHalted).AddFailure(rule.CheckFailure{Code: r.code}).ReplaceData("")
+	}
+
+	return state
+}
+
+// TestRunStopsOnARuleThatCouldNotDoItsWork: a rule whose state says it could
+// not do its work stops the run where it says so, in an instruction as
+// written or in one ONBUILD wraps: Run returns its error and no failure,
+// not even those the other rules had found.
+func TestRunStopsOnARuleThatCouldNotDoItsWork(t *testing.T) {
+	t.Parallel()
+
+	instructions, err := parser.NewBuildkitParser().Parse(
+		[]byte("FROM a\nUSER b\nONBUILD COPY c d\nRUN e\n"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, tc := range map[string]struct {
+		at    string
+		shown int
+	}{
+		// FROM and USER.
+		"an instruction as written": {"USER", 2},
+		// FROM, USER, ONBUILD, and the COPY it wraps.
+		"an instruction ONBUILD wraps": {"COPY", 4},
+	} {
+		shown := 0
+
+		failures, err := process.NewProcessor([]rule.Rule{
+			seen{code: "DL0001"},
+			halts{seen: seen{code: "DL0002"}, at: tc.at, shown: &shown},
+		}).Run(instructions)
+		if !errors.Is(err, errHalted) || failures != nil {
+			t.Errorf("%s: %v, %v; want the rule's error and no failure", name, failures, err)
+		}
+
+		if shown != tc.shown {
+			t.Errorf("%s: the rule was shown %d instructions, want %d", name, shown, tc.shown)
+		}
 	}
 }
