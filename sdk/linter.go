@@ -19,6 +19,9 @@ import (
 type Linter struct {
 	rules []rule.Rule
 
+	// The shellcheck integration WithShellcheck asked for, nil for none.
+	shellcheck *shellcheckConfig
+
 	// What the options say of the rules a configuration reaches, and whether
 	// any option said anything.
 	cfg        *config.Config
@@ -37,7 +40,8 @@ type Option func(*Linter)
 
 // WithRuleSet uses a predefined rule set, in place of every rule: the
 // error and warning rules for RuleSetRecommended, every rule for RuleSetAll
-// and for any other value.
+// and for any other value. The shellcheck integration is no rule of a set:
+// WithShellcheck adds it to either, wherever it stands among the options.
 func WithRuleSet(set RuleSet) Option {
 	return func(l *Linter) {
 		l.rules = ruleSet(set)
@@ -184,7 +188,8 @@ func WithShellcheckExclusions(codes ...string) ShellcheckOption {
 }
 
 // WithShellcheck enables shellcheck integration for RUN instruction validation.
-// Requires the shellcheck binary to be available in PATH.
+// Requires the shellcheck binary to be available in PATH. Given again, the
+// last one holds, with its options alone.
 func WithShellcheck(scOpts ...ShellcheckOption) Option {
 	return func(linter *Linter) {
 		cfg := shellcheckConfig{exclude: shell.DefaultExclude()}
@@ -198,11 +203,7 @@ func WithShellcheck(scOpts ...ShellcheckOption) Option {
 			linter.refuse("WithShellcheckRCFile", cfg.rcFile)
 		}
 
-		checker := shell.NewBinaryShellchecker()
-		checker.RCFile = cfg.rcFile
-		checker.Exclude = cfg.exclude
-		scRule := shell.NewShellcheckRule(checker)
-		linter.rules = append(linter.rules, scRule)
+		linter.shellcheck = &cfg
 	}
 }
 
@@ -233,11 +234,19 @@ func New(opts ...Option) *Linter {
 	}
 
 	// Once every option has spoken: the rules a configuration reaches are
-	// made with it, whichever option chose the rules.
+	// made with it, whichever option chose the rules, and shellcheck joins
+	// them once.
 	if lint.configured {
 		for i, r := range lint.rules {
 			lint.rules[i] = rules.WithConfig(r, lint.cfg)
 		}
+	}
+
+	if lint.shellcheck != nil {
+		checker := shell.NewBinaryShellchecker()
+		checker.RCFile = lint.shellcheck.rcFile
+		checker.Exclude = lint.shellcheck.exclude
+		lint.rules = append(lint.rules, shell.NewShellcheckRule(checker))
 	}
 
 	return lint
