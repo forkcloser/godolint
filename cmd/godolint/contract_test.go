@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // contractBinary is the command built once for every case.
@@ -33,7 +34,11 @@ func TestMain(m *testing.M) {
 
 	contractBinary = filepath.Join(dir, "godolint"+exeSuffix())
 
-	build := exec.CommandContext(context.Background(), "go", "build", "-o", contractBinary, ".")
+	// The build has a deadline as every process these tests start has.
+	building, done := context.WithTimeout(context.Background(), buildDeadline)
+	defer done()
+
+	build := exec.CommandContext(building, "go", "build", "-o", contractBinary, ".")
 	if out, err := build.CombinedOutput(); err != nil {
 		panic(string(out))
 	}
@@ -72,11 +77,35 @@ func homeEnv(home string) []string {
 	}
 }
 
+// How long the build of the binary may take, and one run of it.
+const (
+	buildDeadline = 5 * time.Minute
+	childDeadline = 20 * time.Second
+)
+
+// command is a run of the binary with args, killed at its own deadline. A
+// test binary stopped at its timeout does not take its children with it,
+// and a command that never ends would run on after it, holding what it
+// holds: so no child's life hangs on the test's context alone, and the
+// deadline is far under any timeout a test binary is given.
+func command(t *testing.T, args ...string) *exec.Cmd {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), childDeadline)
+	t.Cleanup(cancel)
+
+	cmd := exec.CommandContext(ctx, contractBinary, args...)
+	// A shellcheck the command started may still hold its pipes.
+	cmd.WaitDelay = time.Second
+
+	return cmd
+}
+
 // runIn runs the binary with args in dir, env laid over the environment.
 func runIn(t *testing.T, dir string, env []string, args ...string) (int, []failure, string) {
 	t.Helper()
 
-	cmd := exec.CommandContext(t.Context(), contractBinary, args...)
+	cmd := command(t, args...)
 
 	cmd.Dir = dir
 
@@ -358,7 +387,7 @@ func TestContractErrorsAndLogsOnStderr(t *testing.T) {
 
 	good := write(t, "Dockerfile", "FROM debian:bookworm\n")
 
-	cmd := exec.CommandContext(t.Context(), contractBinary, "--without-shellcheck", "--log-level", "debug", good)
+	cmd := command(t, "--without-shellcheck", "--log-level", "debug", good)
 
 	var stdout strings.Builder
 
@@ -374,7 +403,7 @@ func TestContractErrorsAndLogsOnStderr(t *testing.T) {
 
 	// No file is a usage error, exit 1; kong prints the usage on stdout,
 	// so it is not decoded here.
-	usage := exec.CommandContext(t.Context(), contractBinary, "--without-shellcheck")
+	usage := command(t, "--without-shellcheck")
 
 	var exit *exec.ExitError
 	if err := usage.Run(); !errors.As(err, &exit) || exit.ExitCode() != 1 {
