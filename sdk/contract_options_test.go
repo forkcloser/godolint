@@ -306,13 +306,17 @@ func TestContractShellcheckRCFileMustOpen(t *testing.T) {
 	}
 
 	for name, path := range paths {
-		var refused *sdk.ConfigError
+		named := sdk.WithShellcheck(sdk.WithShellcheckRCFile(path))
 
-		result, err := sdk.New(sdk.WithShellcheck(sdk.WithShellcheckRCFile(path))).
-			Lint(t.Context(), []byte("FROM debian:12\nRUN echo $HOME\n"))
-		if result != nil || !errors.As(err, &refused) || refused.Option != "WithShellcheckRCFile" ||
-			refused.Value != path {
-			t.Errorf("%s: %v, %v; want a *ConfigError naming it and no result", name, result, err)
+		// A later WithShellcheck holds, and does not take the refusal back.
+		for order, opts := range map[string][]sdk.Option{"alone": {named}, "then given again": {named, sdk.WithShellcheck()}} {
+			var refused *sdk.ConfigError
+
+			result, err := sdk.New(opts...).Lint(t.Context(), []byte("FROM debian:12\nRUN echo $HOME\n"))
+			if result != nil || !errors.As(err, &refused) || refused.Option != "WithShellcheckRCFile" ||
+				refused.Value != path {
+				t.Errorf("%s, %s: %v, %v; want a *ConfigError naming it and no result", name, order, result, err)
+			}
 		}
 	}
 }
@@ -430,6 +434,13 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 
 	leftOut := sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2086"))
 
+	rcfile := filepath.Join(t.TempDir(), "shellcheckrc")
+	if err := os.WriteFile(rcfile, []byte("disable=SC2086\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	disabled := sdk.WithShellcheck(sdk.WithShellcheckRCFile(rcfile))
+
 	for name, tc := range map[string]struct {
 		opts []sdk.Option
 		want int
@@ -439,6 +450,8 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 		"given twice":                   {[]sdk.Option{sdk.WithShellcheck(), sdk.WithShellcheck()}, 1},
 		"the last leaves the check out": {[]sdk.Option{sdk.WithShellcheck(), leftOut}, 0},
 		"the last leaves nothing out":   {[]sdk.Option{leftOut, sdk.WithShellcheck()}, 1},
+		"the last names a file":         {[]sdk.Option{sdk.WithShellcheck(), disabled}, 0},
+		"the last names no file":        {[]sdk.Option{disabled, sdk.WithShellcheck()}, 1},
 	} {
 		found := 0
 

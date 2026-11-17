@@ -192,7 +192,8 @@ func WithShellcheckExclusions(codes ...string) ShellcheckOption {
 // Requires the shellcheck binary to be available in PATH: a RUN shellcheck
 // does not scan (no binary, an option it does not take, no answer in thirty
 // seconds, no report) makes Lint return a *ShellcheckError and no Result.
-// Given again, the last one holds, with its options alone.
+// Given again, the last one holds, with its options alone; a value an
+// earlier one was given and does not take is still refused.
 func WithShellcheck(scOpts ...ShellcheckOption) Option {
 	return func(linter *Linter) {
 		cfg := shellcheckConfig{exclude: shell.DefaultExclude()}
