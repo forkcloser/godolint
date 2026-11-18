@@ -18,6 +18,10 @@ go devtools ecosystem (*):
 godolint is a pure go port of hadolint, filling an age-old gap in the container tooling landscape:
 the ability to lint dockerfiles in go.
 
+Where hadolint's rule and what Docker does disagree (the build, and the commands a Dockerfile runs),
+godolint follows Docker, and every place it answers differently from hadolint is a row in
+[UPSTREAM.md](./UPSTREAM.md).
+
 It comes with an example binary that does mimic a small subset of the hadolint binary behavior,
 and can also be used (of course, and primarily) as a library in Go projects.
 
