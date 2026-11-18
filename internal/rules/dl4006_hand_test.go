@@ -24,6 +24,8 @@ func TestDL4006Hand(t *testing.T) {
 		{"cmd in capitals", `SHELL ["CMD", "/S", "/C"]`, false},
 		{"powershell", `SHELL ["powershell", "-Command"]`, false},
 		{"pwsh under a path", `SHELL ["/usr/bin/pwsh", "-Command"]`, false},
+		{"the preview PowerShell", `SHELL ["pwsh-preview", "-Command"]`, false},
+		{"the long-term PowerShell, under a path", `SHELL ["/opt/microsoft/powershell/7-lts/pwsh-lts", "-Command"]`, false},
 		{"fish", `SHELL ["/usr/bin/fish", "-c"]`, false},
 		{"bash with pipefail", `SHELL ["/bin/bash", "-o", "pipefail", "-c"]`, false},
 		{"bash without pipefail", `SHELL ["/bin/bash", "-c"]`, true},

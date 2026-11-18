@@ -92,17 +92,14 @@ func (r *DL4006Rule) Check(line int, state rule.State, instruction syntax.Instru
 }
 
 // isNonPosixShell reports whether program, the first word of a SHELL, is a
-// shell with no pipefail to ask for: fish, PowerShell, or Windows' cmd, under
-// any path, with or without .exe, in any case.
+// shell with no pipefail to ask for: fish, Windows' cmd, or a PowerShell,
+// under any path, with or without .exe, in any case. A PowerShell is
+// installed under more names than two (pwsh-preview, pwsh-lts): any name
+// that begins as one is one.
 func isNonPosixShell(program string) bool {
-	name := strings.ToLower(program[strings.LastIndexAny(program, `/\`)+1:])
+	name := strings.TrimSuffix(strings.ToLower(program[strings.LastIndexAny(program, `/\`)+1:]), ".exe")
 
-	switch strings.TrimSuffix(name, ".exe") {
-	case "fish", "pwsh", "powershell", "cmd":
-		return true
-	default:
-		return false
-	}
+	return name == "fish" || name == "cmd" || strings.HasPrefix(name, "pwsh") || strings.HasPrefix(name, "powershell")
 }
 
 // hasPipes checks if a command contains pipes.
