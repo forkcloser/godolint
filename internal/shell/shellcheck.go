@@ -24,6 +24,26 @@ import (
 // instruction's script is tiny, so this is far beyond any legitimate run.
 const shellcheckTimeout = 30 * time.Second
 
+// errNoAnswer is why a shellcheck was killed at the timeout.
+var errNoAnswer = errors.New("no answer in " + shellcheckTimeout.String())
+
+// ScanError is a RUN shellcheck did not scan. What the rule found before
+// it is no verdict on the Dockerfile: the lint stops on it.
+type ScanError struct {
+	// Line is the line of the RUN.
+	Line int
+	// Err is what running shellcheck returned.
+	Err error
+}
+
+func (e *ScanError) Error() string {
+	return fmt.Sprintf("shellcheck did not scan the RUN at line %d: %v", e.Line, e.Err)
+}
+
+func (e *ScanError) Unwrap() error {
+	return e.Err
+}
+
 // Opts contains options for running shellcheck.
 // Ported from Hadolint.Shell.ShellOpts.
 type Opts struct {
@@ -113,27 +133,22 @@ func (c *BinaryShellchecker) Check(script string, opts Opts) ([]rule.CheckFailur
 		return nil, nil
 	}
 
-	output, err := c.run(buildScript(script, opts))
+	scResults, err := c.run(buildScript(script, opts))
 	if err != nil {
 		return nil, err
-	}
-
-	var scResults []shellcheckOutput
-
-	if len(output) > 0 {
-		if err = json.Unmarshal(output, &scResults); err != nil {
-			return nil, fmt.Errorf("failed to parse shellcheck output: %w", err)
-		}
 	}
 
 	return convertFindings(scResults, opts), nil
 }
 
-// run hands the script to shellcheck as a file and returns its JSON report.
-// A shellcheck that ran and found violations exits non-zero, which is the
-// expected path; only one that could not run at all is an error here
-// (matching hadolint).
-func (c *BinaryShellchecker) run(fullScript string) ([]byte, error) {
+// run hands the script to shellcheck as a file and returns its report.
+// shellcheck exits 0 for a scan that found nothing and 1 for one that found
+// something, and prints a report for either, `[]` for nothing. Anything
+// else is a scan that did not happen, and an error: no binary, a status of
+// 2 and above (an option it does not take), a kill, and no report or one
+// that does not read, which is what a wrapper that fails in shellcheck's
+// place leaves, often with status 1.
+func (c *BinaryShellchecker) run(fullScript string) ([]shellcheckOutput, error) {
 	tmpFile, err := os.CreateTemp("", "shellcheck-*.sh")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
@@ -167,13 +182,16 @@ func (c *BinaryShellchecker) run(fullScript string) ([]byte, error) {
 	args = append(args, tmpFile.Name())
 
 	// No caller context reaches this point (the rule fold carries none), but
-	// a wedged shellcheck must not hang the whole lint run: bound it. A kill
-	// flows through the non-fatal error path below, like any shellcheck
-	// failure (matching hadolint).
-	ctx, cancel := context.WithTimeout(context.Background(), shellcheckTimeout)
+	// a wedged shellcheck must not hang the whole lint run: bound it.
+	ctx, cancel := context.WithTimeoutCause(context.Background(), shellcheckTimeout, errNoAnswer)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "shellcheck", args...)
+
+	// A shellcheck behind a wrapper is the wrapper's child: killed at the
+	// bound, the wrapper leaves it holding the pipes, and without this the
+	// wait goes on until the child ends.
+	cmd.WaitDelay = time.Second
 
 	// Stdout only: the JSON report. Stderr is anything else — shellcheck's
 	// own diagnostics, or the tool manager's (on Windows, aqua's shim warns
@@ -186,12 +204,32 @@ func (c *BinaryShellchecker) run(fullScript string) ([]byte, error) {
 	output, err := cmd.Output()
 	if err != nil {
 		exitError := &exec.ExitError{}
-		if !errors.As(err, &exitError) {
-			return nil, fmt.Errorf("failed to run shellcheck: %w: %s", err, strings.TrimSpace(stderr.String()))
+		if !errors.As(err, &exitError) || exitError.ExitCode() != 1 {
+			if cause := context.Cause(ctx); cause != nil {
+				err = fmt.Errorf("%w: %w", cause, err)
+			}
+
+			return nil, said(fmt.Errorf("failed to run shellcheck: %w", err), &stderr)
 		}
 	}
 
-	return output, nil
+	var findings []shellcheckOutput
+
+	if err = json.Unmarshal(output, &findings); err != nil {
+		return nil, said(fmt.Errorf("failed to parse shellcheck output: %w", err), &stderr)
+	}
+
+	return findings, nil
+}
+
+// said is the error with what the program wrote on its standard error, when
+// it wrote anything.
+func said(err error, stderr *bytes.Buffer) error {
+	if text := strings.TrimSpace(stderr.String()); text != "" {
+		return fmt.Errorf("%w: %s", err, text)
+	}
+
+	return err
 }
 
 // convertFindings turns shellcheck's report into rule failures. shellcheck
@@ -424,9 +462,7 @@ func (r *ShellcheckRule) Check(line int, state rule.State, instruction syntax.In
 
 		violations, err := r.checker.Check(instr.Command, shState.opts)
 		if err != nil {
-			// A shellcheck that fails is not fatal, as in hadolint; nothing
-			// records it.
-			return state
+			return state.Stop(&ScanError{Line: line, Err: err})
 		}
 
 		// Add all shellcheck violations to state, anchored to the RUN's line

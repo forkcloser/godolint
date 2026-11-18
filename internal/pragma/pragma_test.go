@@ -319,11 +319,19 @@ EXPOSE 80000`
 
 	allRules := []rule.Rule{rules.DL3002(), rules.DL3011()}
 
-	silenced := process.NewProcessor(allRules).Run(instructions)
+	silenced, err := process.NewProcessor(allRules).Run(instructions)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	testutils.AssertNoViolation(t, silenced, "DL3002")
 	testutils.AssertNoViolation(t, silenced, "DL3011")
 
-	loud := process.NewProcessor(allRules).WithDisableIgnorePragmas(true).Run(instructions)
+	loud, err := process.NewProcessor(allRules).WithDisableIgnorePragmas(true).Run(instructions)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	testutils.AssertContainsViolation(t, loud, "DL3002")
 	testutils.AssertContainsViolation(t, loud, "DL3011")
 }

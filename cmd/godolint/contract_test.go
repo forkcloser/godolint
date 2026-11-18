@@ -485,3 +485,98 @@ func TestContractFailuresAreOrdered(t *testing.T) {
 		}
 	}
 }
+
+// shellcheckExiting is a directory holding a shellcheck that scans nothing,
+// prints the word on its standard output when there is one, and exits with
+// the status.
+func shellcheckExiting(t *testing.T, status int, word string) string {
+	t.Helper()
+
+	name, head, say, exit := "shellcheck", "#!/bin/sh\n", "echo '"+word+"'\n", "exit %d\n"
+	if runtime.GOOS == "windows" {
+		name, head, say, exit = "shellcheck.bat", "", "@echo."+word+"\r\n", "@exit %d\r\n"
+	}
+
+	// Nothing at all, not even an empty line.
+	if word == "" {
+		say = ""
+	}
+
+	script := head + say + fmt.Sprintf(exit, status)
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	return dir
+}
+
+// TestContractShellcheckThatDidNotScan: a shellcheck that exits with a
+// status that is no scan's (3: an option it does not take), or with a scan's
+// status and no report (nothing, or words that are none: what a wrapper
+// failing in its place leaves), is an error and no lint: exit 1, the RUN's
+// line on stderr, nothing on stdout. With no shellcheck on PATH the run
+// lints without it and says so on stderr, at every log level;
+// --without-shellcheck lints without it and says nothing.
+func TestContractShellcheckThatDidNotScan(t *testing.T) {
+	t.Parallel()
+
+	// DL3006: an image with no tag.
+	file := write(t, "Dockerfile", "FROM debian\nRUN echo $HOME\n")
+	empty := t.TempDir()
+
+	reported := func(failures []failure) bool {
+		return slices.ContainsFunc(failures, func(f failure) bool { return f.Code == "DL3006" })
+	}
+
+	for name, stand := range map[string]struct {
+		status int
+		word   string
+	}{
+		"exiting 3":                 {3, ""},
+		"exiting 1 with no report":  {1, ""},
+		"exiting 0 with no report":  {0, ""},
+		"exiting 1 with words":      {1, "broken"},
+		"exiting 0 with words":      {0, "broken"},
+		"exiting 3 with a report":   {3, "[]"},
+		"exiting 1 with half of it": {1, "["},
+	} {
+		env := append(homeEnv(empty), "PATH="+shellcheckExiting(t, stand.status, stand.word))
+
+		code, failures, stderr := runIn(t, empty, env, file)
+		if code != 1 || failures != nil || !strings.Contains(stderr, "shellcheck did not scan the RUN at line 2") {
+			t.Errorf("a shellcheck %s: exit %d, stdout %v, stderr %q; want 1, nothing, the RUN's line",
+				name, code, failures, stderr)
+		}
+	}
+
+	// The premise of the rows above: a stand-in that prints an empty report
+	// is a shellcheck that scanned, and the other rules' failures are printed.
+	scanning := append(homeEnv(empty), "PATH="+shellcheckExiting(t, 0, "[]"))
+	if code, failures, stderr := runIn(t, empty, scanning, file); code != 1 || !reported(failures) {
+		t.Fatalf("a shellcheck printing []: exit %d, stdout %v, stderr %q; want 1 and DL3006", code, failures, stderr)
+	}
+
+	refusing := append(homeEnv(empty), "PATH="+shellcheckExiting(t, 3, ""))
+
+	// --no-fail is about violations: a scan that did not happen still fails.
+	code, failures, _ := runIn(t, empty, refusing, "--no-fail", file)
+	if code != 1 || failures != nil {
+		t.Errorf("a shellcheck exiting 3, --no-fail: exit %d, stdout %v; want 1 and nothing", code, failures)
+	}
+
+	none := append(homeEnv(empty), "PATH="+t.TempDir())
+
+	code, failures, stderr := runIn(t, empty, none, "--log-level", "error", file)
+	if code != 1 || !reported(failures) || !strings.Contains(stderr, "no shellcheck in PATH") {
+		t.Errorf("no shellcheck, --log-level error: exit %d, stdout %v, stderr %q; want 1, DL3006, the warning",
+			code, failures, stderr)
+	}
+
+	code, failures, stderr = runIn(t, empty, none, "--without-shellcheck", file)
+	if code != 1 || !reported(failures) || strings.Contains(stderr, "shellcheck") {
+		t.Errorf("no shellcheck, --without-shellcheck: exit %d, stdout %v, stderr %q; want 1, DL3006, no warning",
+			code, failures, stderr)
+	}
+}

@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -188,8 +189,11 @@ func WithShellcheckExclusions(codes ...string) ShellcheckOption {
 }
 
 // WithShellcheck enables shellcheck integration for RUN instruction validation.
-// Requires the shellcheck binary to be available in PATH. Given again, the
-// last one holds, with its options alone.
+// Requires the shellcheck binary to be available in PATH: a RUN shellcheck
+// does not scan (no binary, an option it does not take, no answer in thirty
+// seconds, no report) makes Lint return a *ShellcheckError and no Result.
+// Given again, the last one holds, with its options alone; a value an
+// earlier one was given and does not take is still refused.
 func WithShellcheck(scOpts ...ShellcheckOption) Option {
 	return func(linter *Linter) {
 		cfg := shellcheckConfig{exclude: shell.DefaultExclude()}
@@ -255,6 +259,8 @@ func New(opts ...Option) *Linter {
 // Lint lints the given Dockerfile content.
 // The context can be used for cancellation. A linter made with an option
 // given a value it does not take lints nothing and returns a *ConfigError.
+// A Dockerfile that cannot be parsed is a *ParseError, and a RUN shellcheck
+// was to scan and did not, a *ShellcheckError.
 func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	if l.err != nil {
 		return nil, l.err
@@ -288,7 +294,17 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 	processor := process.NewProcessor(l.rules).
 		WithDisableIgnorePragmas(l.disableIgnorePragma).
 		WithIgnored(l.ignored)
-	failures := process.Settle(processor.Run(instructions), l.overrides)
+
+	found, err := processor.Run(instructions)
+	if err != nil {
+		if scan, ok := errors.AsType[*shell.ScanError](err); ok {
+			err = &ShellcheckError{Line: scan.Line, Err: scan.Err}
+		}
+
+		return nil, err
+	}
+
+	failures := process.Settle(found, l.overrides)
 
 	// Convert to SDK violations
 	violations := make([]Violation, len(failures))

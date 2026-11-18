@@ -87,6 +87,10 @@ func Fail(r Rule, line int) CheckFailure {
 type State struct {
 	Failures []CheckFailure
 	Data     any // Custom state data
+	// Err is why the rule could not do its work on the Dockerfile, nil when
+	// it could. Its failures are then no verdict: the run stops and returns
+	// the error.
+	Err error
 }
 
 // EmptyState creates a new state with no failures and the given initial data.
@@ -102,6 +106,7 @@ func (s State) AddFailure(failure CheckFailure) State {
 	return State{
 		Failures: append(s.Failures, failure),
 		Data:     s.Data,
+		Err:      s.Err,
 	}
 }
 
@@ -110,6 +115,16 @@ func (s State) ReplaceData(data any) State {
 	return State{
 		Failures: s.Failures,
 		Data:     data,
+		Err:      s.Err,
+	}
+}
+
+// Stop records that the rule could not do its work, and why.
+func (s State) Stop(err error) State {
+	return State{
+		Failures: s.Failures,
+		Data:     s.Data,
+		Err:      err,
 	}
 }
 

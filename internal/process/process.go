@@ -4,6 +4,7 @@ package process
 
 import (
 	"cmp"
+	"errors"
 	"slices"
 
 	"github.com/forkcloser/godolint/internal/pragma"
@@ -48,7 +49,11 @@ func (p *Processor) WithIgnored(codes map[rule.Code]bool) *Processor {
 // Run processes a Dockerfile AST and returns all rule violations found.
 // Uses fold-style accumulation with state for each rule.
 // Ported from Hadolint's Rule fold pattern.
-func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailure {
+//
+// A rule that could not do its work stops the run: its error is returned,
+// and no failure with it, since what the others found is not the verdict
+// the caller asked for.
+func (p *Processor) Run(instructions []syntax.InstructionPos) ([]rule.CheckFailure, error) {
 	allFailures := []rule.CheckFailure{}
 
 	// For each rule, fold over all instructions with state. A rule hadolint
@@ -72,6 +77,10 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 			if onbuild, ok := instrPos.Instruction.(*syntax.OnBuild); ok && inOnBuild {
 				wrapped = currentRule.Check(instrPos.LineNumber, wrapped, onbuild.Inner)
 			}
+
+			if err := errors.Join(state.Err, wrapped.Err); err != nil {
+				return nil, err
+			}
 		}
 
 		// Finalize the state (some rules add failures only at the end)
@@ -88,7 +97,7 @@ func (p *Processor) Run(instructions []syntax.InstructionPos) []rule.CheckFailur
 		allFailures = filterIgnored(allFailures, directives)
 	}
 
-	return slices.DeleteFunc(allFailures, func(failure rule.CheckFailure) bool { return p.ignored[failure.Code] })
+	return slices.DeleteFunc(allFailures, func(failure rule.CheckFailure) bool { return p.ignored[failure.Code] }), nil
 }
 
 // Settle gives the failures of a run the severity overrides names for their
