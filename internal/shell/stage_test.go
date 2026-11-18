@@ -211,6 +211,102 @@ RUN echo $MISSING_QUOTES`,
 			fails: true,
 		},
 		{
+			name: "A shell run through env is clean on a clean RUN",
+			dockerfile: `SHELL ["/usr/bin/env", "bash", "-c"]
+RUN echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env is that shell",
+			dockerfile: `SHELL ["env", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env, after its options and variables",
+			dockerfile: `SHELL ["/usr/bin/env", "-i", "PATH=/bin", "/bin/bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env is still checked",
+			dockerfile: `SHELL ["/usr/bin/env", "sh", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: true,
+		},
+		{
+			name: "A shell run through env is the word after env's options",
+			dockerfile: `SHELL ["/usr/bin/env", "-i", "sh", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: true,
+		},
+		{
+			name: "busybox sh has local",
+			dockerfile: `SHELL ["busybox", "sh", "-c"]
+RUN f() { local x=1; echo "$x"; }; f`,
+			fails: false,
+		},
+		{
+			name: "sh through env is sh, which has no local",
+			dockerfile: `SHELL ["env", "sh", "-c"]
+RUN f() { local x=1; echo "$x"; }; f`,
+			fails: true,
+		},
+		{
+			name: "A shell run through env, after an option and its value",
+			dockerfile: `SHELL ["/usr/bin/env", "-u", "BASH_ENV", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env, after a long option and its value",
+			dockerfile: `SHELL ["env", "--chdir", "/tmp", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env, after the name it is given",
+			dockerfile: `SHELL ["env", "-a", "sh", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env, after the name it is given, in the long form",
+			dockerfile: `SHELL ["env", "--argv0", "sh", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env from a split string",
+			dockerfile: `SHELL ["env", "-S", "bash -e", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "busybox sh is clean on a clean RUN",
+			dockerfile: `SHELL ["busybox", "sh", "-c"]
+RUN echo ok`,
+			fails: false,
+		},
+		{
+			name: "busybox by its path is clean on a clean RUN",
+			dockerfile: `SHELL ["/bin/busybox", "sh", "-c"]
+RUN echo ok`,
+			fails: false,
+		},
+		{
+			name: "busybox ash is busybox sh",
+			dockerfile: `SHELL ["/bin/busybox", "ash", "-c"]
+RUN echo ok`,
+			fails: false,
+		},
+		{
+			name: "busybox sh is still checked",
+			dockerfile: `SHELL ["busybox", "sh", "-c"]
+RUN echo $MISSING_QUOTES`,
+			fails: true,
+		},
+		{
 			name:       "A bashism under the default shell",
 			dockerfile: `RUN [[ -f /x ]] && echo ok`,
 			fails:      true,

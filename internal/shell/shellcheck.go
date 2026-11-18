@@ -269,21 +269,8 @@ func convertFindings(scResults []shellcheckOutput, opts Opts) []rule.CheckFailur
 func buildScript(runCommand string, opts Opts) string {
 	var build strings.Builder
 
-	// The first line is this function's, not the Dockerfile's: shellcheck
-	// reports one that is no absolute path (SC2239), so a shell named
-	// without its path (SHELL ["bash", "-c"]) is found through env, which
-	// tells shellcheck the same shell.
-	shebang := extractShell(opts.ShellName)
-
-	switch {
-	case shebang == "":
-		shebang = "/bin/sh"
-	case !strings.HasPrefix(shebang, "/"):
-		shebang = "/usr/bin/env " + Basename(shebang)
-	}
-
 	_, _ = build.WriteString("#!")
-	_, _ = build.WriteString(shebang)
+	_, _ = build.WriteString(shebangFor(opts.ShellName))
 	_, _ = build.WriteString("\n")
 
 	for key := range opts.EnvVars {
@@ -297,17 +284,66 @@ func buildScript(runCommand string, opts Opts) string {
 	return build.String()
 }
 
-// extractShell extracts the shell path from shell command.
-// Ported from extractShell in Hadolint.Shell.
-func extractShell(shellCmd string) string {
-	// Take first word from shell command
-	// E.g., "/bin/bash -c" -> "/bin/bash"
-	parts := strings.Fields(shellCmd)
-	if len(parts) > 0 {
-		return parts[0]
+// The programs that run the shell named after them, and where the first
+// line of a script finds them.
+const (
+	envProgram     = "env"
+	envPath        = "/usr/bin/env"
+	busyboxProgram = "busybox"
+	busyboxShell   = "/bin/busybox sh"
+)
+
+// envRuns is the program env runs with args: the first word that is
+// neither an option, the value of one, nor a variable, or "". The options
+// read here as taking their value in the next word are -u, -C, -P and -a,
+// with GNU's long forms. -S needs nothing: its value is the command, and
+// the words come here already split.
+func envRuns(args []string) string {
+	for at := 0; at < len(args); at++ {
+		switch word := args[at]; {
+		case word == "-u", word == "--unset", word == "-C", word == "--chdir", word == "-P",
+			word == "-a", word == "--argv0":
+			at++
+		case strings.HasPrefix(word, "-"), strings.Contains(word, "="):
+		default:
+			return word
+		}
 	}
 
 	return ""
+}
+
+// shebangFor is the first line that tells shellcheck the shell a SHELL
+// names, in a form it reads: an absolute path, env and a name, or busybox
+// sh. shellcheck reports any other (SC2239 for a bare name, SC1008 for env
+// or busybox alone, and for a busybox applet that is not sh), and the line
+// is this package's, not the Dockerfile's. The shell is the program, or the
+// one env or busybox runs.
+func shebangFor(shellName string) string {
+	words := strings.Fields(shellName)
+	if len(words) == 0 {
+		return "/bin/sh"
+	}
+
+	program := words[0]
+
+	switch Basename(program) {
+	case envProgram:
+		if runs := envRuns(words[1:]); runs != "" {
+			program = runs
+		}
+	case busyboxProgram:
+		// The one applet shellcheck reads is sh, which is what ash is.
+		if len(words) > 1 && (words[1] == "sh" || words[1] == "ash") {
+			return busyboxShell
+		}
+	}
+
+	if !strings.HasPrefix(program, "/") {
+		return envPath + " " + Basename(program)
+	}
+
+	return program
 }
 
 // hasUnsupportedShebang checks if script starts with an unsupported shebang.
