@@ -224,6 +224,43 @@ func TestParsePairs(t *testing.T) {
 	}
 }
 
+// TestParseOnBuildBlank: the blank between ONBUILD and the instruction it
+// wraps is any of those buildkit splits an instruction from its arguments
+// by, a tab among them.
+func TestParseOnBuildBlank(t *testing.T) {
+	t.Parallel()
+
+	for name, line := range map[string]string{
+		"a space":     "ONBUILD RUN true",
+		"a tab":       "ONBUILD\tRUN true",
+		"a form feed": "ONBUILD\fRUN true",
+		"several":     "ONBUILD \t  RUN true",
+		"lower case":  "onbuild\tRUN true",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			instructions, err := parser.NewBuildkitParser().Parse([]byte("FROM a\n" + line + "\n"))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+
+			if len(instructions) != 2 {
+				t.Fatalf("%d instructions, want the FROM and the ONBUILD", len(instructions))
+			}
+
+			onBuild, wrapped := instructions[1].Instruction.(*syntax.OnBuild)
+			if !wrapped {
+				t.Fatalf("the second instruction is a %T, want an ONBUILD", instructions[1].Instruction)
+			}
+
+			if run, isRun := onBuild.Inner.(*syntax.Run); !isRun || run.Command != "true" {
+				t.Errorf("the ONBUILD wraps %#v, want RUN true", onBuild.Inner)
+			}
+		})
+	}
+}
+
 // TestParseRunHeredoc: the script of a RUN written with a heredoc. The body
 // is the script where the heredoc is the whole command, and never an
 // instruction; where a command stands before the heredoc, the script is that

@@ -12,10 +12,15 @@ import (
 	"github.com/forkcloser/godolint/internal/syntax"
 )
 
-// onBuildPrefix is the keyword ONBUILD lines start with, trailing space
-// included: buildkit hands the converter the whole line, and what follows the
-// keyword is the instruction ONBUILD wraps.
-const onBuildPrefix = "ONBUILD "
+const (
+	// onBuildKeyword is the keyword ONBUILD lines start with: buildkit hands
+	// the converter the whole line, and what follows the keyword is the
+	// instruction ONBUILD wraps.
+	onBuildKeyword = "ONBUILD"
+	// instructionBlanks are the characters buildkit splits an instruction
+	// from its arguments by: a tab after ONBUILD is a blank as a space is.
+	instructionBlanks = "\t\v\f\r "
+)
 
 // Static sentinel errors for instruction conversion failures, so callers can
 // match them with errors.Is; detail is attached by wrapping where needed.
@@ -615,11 +620,16 @@ func convertOnBuild(node *parser.Node, escape rune) (*syntax.OnBuild, error) {
 	// We need to parse the inner instruction from the Original string
 	original := strings.TrimSpace(node.Original)
 
-	if !strings.HasPrefix(strings.ToUpper(original), onBuildPrefix) {
+	if len(original) < len(onBuildKeyword) || !strings.EqualFold(original[:len(onBuildKeyword)], onBuildKeyword) {
 		return nil, ErrInvalidOnBuild
 	}
 
-	innerText := strings.TrimSpace(original[len(onBuildPrefix):])
+	rest := original[len(onBuildKeyword):]
+	if rest != "" && !strings.ContainsRune(instructionBlanks, rune(rest[0])) {
+		return nil, ErrInvalidOnBuild
+	}
+
+	innerText := strings.TrimSpace(rest)
 	if innerText == "" {
 		return nil, ErrOnBuildMissingInstruction
 	}
