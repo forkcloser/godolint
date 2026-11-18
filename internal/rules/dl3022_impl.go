@@ -73,7 +73,7 @@ func (r *DL3022Rule) Check(line int, state rule.State, instruction syntax.Instru
 // not to a stage seen here), a stage alias seen so far, or a stage index
 // below the count of stages seen.
 func (s dl3022State) resolves(fromRef string) bool {
-	if strings.Contains(fromRef, ":") || strings.Contains(fromRef, "$") || s.stages[fromRef] {
+	if strings.Contains(fromRef, ":") || strings.Contains(fromRef, "$") || s.stages[stageNamed(fromRef)] {
 		return true
 	}
 
