@@ -80,7 +80,7 @@ func (r *DL3026Rule) Check(line int, state rule.State, instruction syntax.Instru
 		}
 
 	case *syntax.Copy:
-		if inst.From == nil || isStageIndex(*inst.From) || r.allows(*inst.From, current.aliases) {
+		if inst.From == nil || r.allowsSource(*inst.From, current.aliases) {
 			return state
 		}
 
@@ -121,12 +121,18 @@ func (r *DL3026Rule) allowsMounts(flags []string, aliases map[string]bool) bool 
 			continue
 		}
 
-		if !isStageIndex(from) && !r.allows(from, aliases) {
+		if !r.allowsSource(from, aliases) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// allowsSource reports whether the source of a COPY --from or of a mount may
+// be used: a stage by its number or by its name, or an image allows passes.
+func (r *DL3026Rule) allowsSource(from string, aliases map[string]bool) bool {
+	return isStageIndex(from) || aliases[stageNamed(from)] || r.allows(from, aliases)
 }
 
 // allows reports whether image may be used: an earlier stage, any image when

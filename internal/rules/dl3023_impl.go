@@ -36,7 +36,7 @@ func (r *DL3023Rule) Check(line int, state rule.State, instruction syntax.Instru
 
 	if copyInstr, ok := instruction.(*syntax.Copy); ok {
 		if copyInstr.From != nil && currentAlias != "" {
-			if *copyInstr.From == currentAlias {
+			if stageNamed(*copyInstr.From) == currentAlias {
 				return state.AddFailure(rule.Fail(r, line))
 			}
 		}
