@@ -121,7 +121,7 @@ func (r *DL3049Rule) Check(line int, state rule.State, instruction syntax.Instru
 		}
 
 		for label := range r.cfg.LabelSchema {
-			current.excuse(label, *inst.From)
+			current.excuse(label, stageNamed(*inst.From))
 		}
 
 	case *syntax.Label:
