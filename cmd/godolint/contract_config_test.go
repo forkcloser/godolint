@@ -247,11 +247,77 @@ func TestContractConfigurationFile(t *testing.T) {
 	}
 }
 
-// TestContractConfigurationFileRefused: a file godolint cannot obey whole is
-// obeyed in nothing: exit 1, nothing on stdout, and stderr naming the file
-// and what is wrong in it: a key hadolint does not have, at the top or under
-// override; a format other than json; a label type or a threshold that is
-// not one; a value of the wrong shape; a file that is not there.
+// TestContractConfigurationFileWarned: what hadolint's configuration takes
+// and godolint does not act on is a warning on stderr naming the file and
+// the thing, and the rest of the file is obeyed: a key hadolint does not
+// have, at the top or under override, which hadolint passes over; an output
+// format of hadolint's other than json. The lint runs and writes its JSON.
+func TestContractConfigurationFileWarned(t *testing.T) {
+	t.Parallel()
+
+	// DL3006 is what the file's own `ignored` silences in every row.
+	dockerfile := write(t, "Dockerfile", "FROM ubuntu\nMAINTAINER x\n")
+
+	for _, tc := range []struct {
+		name  string
+		file  string
+		named string
+	}{
+		{"an unknown key", "ignored: [DL3006]\nfailureThreshold: error\n", `"failureThreshold"`},
+		{"an unknown key under override", "ignored: [DL3006]\noverride:\n  fatal: [DL4000]\n", `"override.fatal"`},
+		{"ignore is not an override", "ignored: [DL3006]\noverride:\n  ignore: [DL4000]\n", `"override.ignore"`},
+		{"format tty", "ignored: [DL3006]\nformat: tty\n", `"tty"`},
+		{"formats with sarif", "ignored: [DL3006]\nformats: [json, sarif]\n", `"sarif"`},
+		// The file is the linted repository's: a key that is an escape
+		// sequence is named in its quoted form.
+		{"a key of control characters", "ignored: [DL3006]\n\"\\e]0;title\\a\": x\n", `"\x1b]0;title\a"`},
+		{
+			"a key of control characters under override",
+			"ignored: [DL3006]\noverride:\n  \"\\e]0;title\\a\": [DL4000]\n",
+			`"override.\x1b]0;title\a"`,
+		},
+		// hadolint reads YAML 1.2, where `<<` merges nothing: what it would
+		// bring in is not obeyed.
+		{"a merge key", "ignored: [DL3006]\nbase: &base {no-fail: true}\n<<: *base\n", `"<<"`},
+		{
+			"a merge key under override",
+			"ignored: [DL3006]\nbase: &base {style: [DL4000]}\noverride:\n  <<: *base\n",
+			`"override.<<"`,
+		},
+		{
+			"a merge key in the mapping override is an alias of",
+			"ignored: [DL3006]\nbase: &base {style: [DL4000]}\nheld: &held {<<: *base}\noverride: *held\n",
+			`"override.<<"`,
+		},
+	} {
+		file := config(t, tc.file)
+
+		code, failures, stderr := run(t, "--without-shellcheck", "--config", file, dockerfile)
+		if got := codesIn(failures); code != 1 || !slices.Equal(got, []string{"DL4000"}) {
+			t.Errorf("%s: exit %d, %v; want 1 and DL4000 alone, the rest of the file obeyed\n%s",
+				tc.name, code, got, stderr)
+		}
+
+		if !strings.Contains(stderr, "warning: ") || !strings.Contains(stderr, tc.named) || !logged(stderr, file) {
+			t.Errorf("%s: stderr %q; want a warning naming the file and %s", tc.name, stderr, tc.named)
+		}
+
+		if strings.ContainsAny(stderr, "\x1b\a") {
+			t.Errorf("%s: stderr %q holds a control character of the file's", tc.name, stderr)
+		}
+	}
+
+	code, failures, stderr := run(t, "--without-shellcheck", "--config", config(t, "ignored: [DL3006]\n"), dockerfile)
+	if code != 1 || !slices.Equal(codesIn(failures), []string{"DL4000"}) || strings.Contains(stderr, "warning") {
+		t.Errorf("a file with nothing to warn of: exit %d, %v, stderr %q", code, codesIn(failures), stderr)
+	}
+}
+
+// TestContractConfigurationFileRefused: a file hadolint would not take as
+// its configuration is obeyed in nothing: exit 1, nothing on stdout, and
+// stderr naming the file and what is wrong in it: a format, a label type or
+// a threshold that is not one; a value of the wrong shape; a file that is
+// not there.
 func TestContractConfigurationFileRefused(t *testing.T) {
 	t.Parallel()
 
@@ -262,11 +328,9 @@ func TestContractConfigurationFileRefused(t *testing.T) {
 		file  string
 		named string
 	}{
-		{"an unknown key", "ignored: [DL3006]\nfailureThreshold: error\n", "`failureThreshold`"},
-		{"an unknown key under override", "override:\n  fatal: [DL3006]\n", "`override.fatal`"},
-		{"ignore is not an override", "override:\n  ignore: [DL3006]\n", "`override.ignore`"},
-		{"format tty", "format: tty\n", "`tty`"},
-		{"formats with sarif", "formats: [json, sarif]\n", "`sarif`"},
+		{"a format hadolint has not", "format: xml\n", "`xml`"},
+		{"formats with one hadolint has not", "formats: [json, xml]\n", "`xml`"},
+		{"a merge key among the labels", "x: &x {a: text}\nlabel-schema:\n  <<: *x\n", "<<"},
 		{"an unknown label type", "label-schema:\n  maintainer: markdown\n", "`markdown`"},
 		{"a label with no type", "label-schema:\n  maintainer:\n", "`maintainer` no type"},
 		{"an unknown threshold", "failure-threshold: fatal\n", "`fatal`"},

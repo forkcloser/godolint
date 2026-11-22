@@ -48,7 +48,7 @@ One JSON array on stdout, on one line, with an object for each violation, and `[
 
 `file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`. `line` is the first line of the instruction, but for what shellcheck finds in the body of a heredoc, which is on the line it stands on. The violations of a file are ordered by line, and by code on one line; several files come one after the other, in the order they were given.
 
-This is hadolint's `json` format, and the only one: there is no `--format` and no `--output`, and a configuration file that asks for another format is refused. A caller that wants another shape reads the JSON.
+This is hadolint's `json` format, and the only one: there is no `--format` and no `--output`, and a configuration file that asks for another of hadolint's formats gets the JSON, with a warning on standard error. A caller that wants another shape reads the JSON.
 
 Logs go to stderr: `--log-level` or `LOG_LEVEL`, one of `debug`, `info` (the default), `warn`, `error`.
 
@@ -105,7 +105,7 @@ no-fail: false
 
 Without `--config`, the file used is the first that exists of `.hadolint.yaml` and `.hadolint.yml` in the working directory; `hadolint.yaml` and `hadolint.yml` in `$XDG_CONFIG_HOME` (or `~/.config`); those two, `config.yaml` and `config.yml` in `~/.hadolint`; `.hadolint.yaml` and `.hadolint.yml` in the home. On Windows the three directories are `%APPDATA%`, `%APPDATA%\hadolint` and `Documents` under the user's profile. The file and the command line add up as in hadolint: a list is the file's and the command line's together, a switch is on when either turns it on, the failure threshold is the command line's when it gives one, and a label both name keeps the file's type. A code given several severities gets the gravest.
 
-A file is obeyed whole or not at all, where hadolint lints with its defaults when it cannot take one. A key hadolint does not have is an error naming it. So are a label type or a threshold that is not one, a label left with no type, and a `format` or `formats` other than `json`. `no-color` is accepted: the JSON has no colour. hadolint's environment variables (`HADOLINT_IGNORE`, `HADOLINT_FAILURE_THRESHOLD` and the others, `NO_COLOR`) are not read.
+A file hadolint would not take as its configuration stops the run, where hadolint prints the error and lints with its defaults: a format, a label type or a threshold that is not one, a label left with no type, YAML that does not parse. What hadolint takes and godolint does not act on is a warning on standard error naming it, and the rest of the file is obeyed: a key hadolint does not have, which hadolint passes over without a word (YAML's merge key `<<` is one: hadolint reads YAML 1.2, where it merges nothing), and a `format` or `formats` of hadolint's other than `json`. `no-color` is accepted: the JSON has no colour. hadolint's environment variables (`HADOLINT_IGNORE`, `HADOLINT_FAILURE_THRESHOLD` and the others, `NO_COLOR`) are not read.
 
 ### Ignore pragmas
 

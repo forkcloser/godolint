@@ -212,9 +212,10 @@ func (c *CLI) requireLabels(file *config.File, schema map[string]config.LabelTyp
 }
 
 // configFile is what the configuration file says: the one --config names,
-// which must be readable, or the first hadolint would find, or nothing. With
-// --verbose, or verbose in the file, which one is said on stderr, in
-// hadolint's words.
+// which must be readable, or the first hadolint would find, or nothing.
+// What the file says that is not acted on is said on stderr, a line each.
+// With --verbose, or verbose in the file, which file is used is said on
+// stderr, in hadolint's words.
 func (c *CLI) configFile() (*config.File, error) {
 	path, found := c.Config, c.Config != ""
 	if !found {
@@ -227,6 +228,10 @@ func (c *CLI) configFile() (*config.File, error) {
 		var err error
 		if file, err = config.Read(path); err != nil {
 			return nil, fmt.Errorf("configuration: %w", err)
+		}
+
+		for _, warning := range file.Warnings {
+			fmt.Fprintf(os.Stderr, "warning: %s: %s\n", path, warning)
 		}
 	}
 

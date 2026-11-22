@@ -15,16 +15,9 @@ import (
 	"github.com/forkcloser/godolint/internal/rule"
 )
 
-// The errors Read wraps, each with the file and what it found there.
-var (
-	// ErrUnknownKey is a key hadolint's configuration does not have.
-	ErrUnknownKey = errors.New("unknown key")
-	// ErrNotImplemented is a setting of hadolint's that godolint does not
-	// carry out, refused so that a file is never half obeyed.
-	ErrNotImplemented = errors.New("not implemented")
-	// ErrInvalidValue is a value its key does not take.
-	ErrInvalidValue = errors.New("invalid value")
-)
+// ErrInvalidValue is a value its key does not take: Read wraps it with the
+// file and what it found there.
+var ErrInvalidValue = errors.New("invalid value")
 
 // formatJSON is the one output format there is.
 const formatJSON = "json"
@@ -46,6 +39,12 @@ type File struct {
 	StrictLabels        *bool              `yaml:"strict-labels"`
 	DisableIgnorePragma *bool              `yaml:"disable-ignore-pragma"`
 	FailureThreshold    *string            `yaml:"failure-threshold"`
+
+	// Warnings is what the file says that is not acted on, one line each: a
+	// key hadolint does not have, which hadolint passes over too, and an
+	// output format of hadolint's that godolint does not write. The rest of
+	// the file is obeyed.
+	Warnings []string `yaml:"-"`
 }
 
 // Override is the rule codes a file gives another severity, by severity.
@@ -57,9 +56,12 @@ type Override struct {
 }
 
 // Read reads the configuration file at path. A file with nothing in it but
-// comments says nothing. A key hadolint does not have, a format other than
-// json, a label type or a failure threshold that is not one, and a file that
-// is not YAML are errors naming the file and what is wrong in it.
+// comments says nothing. What hadolint would not take as its configuration
+// is an error naming the file and what is wrong in it: a format, a label
+// type or a failure threshold that is not one, and a file that is not YAML.
+// What hadolint takes and godolint does not act on is in the file's
+// Warnings: a key hadolint does not have, and a format it has that is not
+// json.
 func Read(path string) (*File, error) {
 	content, err := os.ReadFile(path) // #nosec G304 -- the configuration file is the caller's to name
 	if err != nil {
@@ -71,20 +73,28 @@ func Read(path string) (*File, error) {
 		return file, nil
 	}
 
+	var document yaml.Node
+	if err = yaml.Load(content, &document); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+
+	merges, err := withoutMerges(&document)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+
 	var keys map[string]any
-	if err := yaml.Load(content, &keys); err != nil {
+	if err = document.Load(&keys); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
-	if err := checkKeys(keys); err != nil {
+	if err = document.Load(file); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
-	if err := yaml.Load(content, file); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
+	file.Warnings = slices.Concat(merges, unknownKeys(keys))
 
-	if err := file.check(); err != nil {
+	if err = file.check(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
@@ -103,47 +113,142 @@ func saysNothing(content []byte) bool {
 	return true
 }
 
-// checkKeys refuses a key that is not one of hadolint's, at the top or under
-// override, by its name.
-func checkKeys(keys map[string]any) error {
+// mergeKey is YAML 1.1's key that merges another mapping into its own.
+// hadolint reads YAML 1.2, which has none: there `<<` is a key like any
+// other, one hadolint does not have.
+const mergeKey = "<<"
+
+// withoutMerges takes the merge keys out of the file's mapping and of the
+// one under override, a warning each, so that what they would bring in is
+// not obeyed where hadolint does not obey it. One under label-schema is an
+// error: hadolint takes `<<` there for a label, and its mapping for no
+// label type.
+func withoutMerges(document *yaml.Node) ([]string, error) {
+	if document.Kind != yaml.DocumentNode || len(document.Content) != 1 {
+		return nil, nil
+	}
+
+	var warnings []string
+
+	top := document.Content[0]
+	if dropMerges(top) {
+		warnings = append(warnings, notRead(mergeKey))
+	}
+
+	for at := 0; top.Kind == yaml.MappingNode && at+1 < len(top.Content); at += 2 {
+		switch key, value := top.Content[at], top.Content[at+1]; key.Value {
+		case "override":
+			if dropMerges(value) {
+				warnings = append(warnings, notRead("override."+mergeKey))
+			}
+		case "label-schema":
+			if dropMerges(value) {
+				return nil, fmt.Errorf("%w: label-schema gives %q no type", ErrInvalidValue, mergeKey)
+			}
+		}
+	}
+
+	return warnings, nil
+}
+
+// dropMerges takes the merge keys out of a mapping, or of the mapping an
+// alias stands for, and says whether it had one.
+func dropMerges(mapping *yaml.Node) bool {
+	for mapping.Kind == yaml.AliasNode && mapping.Alias != nil {
+		mapping = mapping.Alias
+	}
+
+	if mapping.Kind != yaml.MappingNode {
+		return false
+	}
+
+	kept, dropped := mapping.Content[:0], false
+
+	for index := 0; index+1 < len(mapping.Content); index += 2 {
+		if key := mapping.Content[index]; key.Kind == yaml.ScalarNode && key.ShortTag() == "!!merge" {
+			dropped = true
+
+			continue
+		}
+
+		kept = append(kept, mapping.Content[index], mapping.Content[index+1])
+	}
+
+	mapping.Content = kept
+
+	return dropped
+}
+
+// notRead is the warning for a key that is not one of hadolint's. The key
+// is the file's, and the file is the linted repository's: it is quoted so
+// that nothing in it reaches a terminal as it is.
+func notRead(key string) string {
+	return fmt.Sprintf("key %q is not one of hadolint's: not read", key)
+}
+
+// unknownKeys names the keys that are not hadolint's, at the top or under
+// override, one warning each: hadolint reads the keys it knows and passes
+// over the others, and so does godolint, saying which.
+func unknownKeys(keys map[string]any) []string {
 	known := []string{
 		"no-fail", "no-color", "verbose", "format", "formats", "override", "ignored",
 		"trustedRegistries", "label-schema", "strict-labels", "disable-ignore-pragma", "failure-threshold",
 	}
 
+	var warnings []string
+
 	for _, key := range slices.Sorted(maps.Keys(keys)) {
 		if !slices.Contains(known, key) {
-			return fmt.Errorf("%w `%s`", ErrUnknownKey, key)
+			warnings = append(warnings, notRead(key))
 		}
 	}
 
-	// An override that is no mapping is refused when the file is read into
-	// its shape.
+	// An override that is no mapping was refused when the file was read
+	// into its shape.
 	override, isMapping := keys["override"].(map[string]any)
 	if !isMapping {
-		return nil
+		return warnings
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(override)) {
 		if _, ok := ParseSeverity(key); !ok || key == severityIgnore || key == severityNone {
-			return fmt.Errorf("%w `override.%s`", ErrUnknownKey, key)
+			warnings = append(warnings, notRead("override."+key))
 		}
 	}
 
-	return nil
+	return warnings
 }
 
-// check refuses the values the keys do not take, and the formats godolint
-// does not write.
+// check refuses the values the keys do not take, and warns of the formats
+// of hadolint's that godolint does not write.
 func (f *File) check() error {
 	formats := slices.Clone(f.Formats)
 	if f.Format != nil {
 		formats = append(formats, *f.Format)
 	}
 
+	// The output formats hadolint's configuration takes; godolint writes
+	// the one that is formatJSON.
+	hadolintFormats := []string{
+		"checkstyle",
+		"codacy",
+		"codeclimate",
+		"gitlab_codeclimate",
+		"gnu",
+		"junit",
+		formatJSON,
+		"sarif",
+		"sonarqube",
+		"tty",
+	}
+
 	for _, format := range formats {
-		if format != formatJSON {
-			return fmt.Errorf("%w: format `%s` (godolint writes json)", ErrNotImplemented, format)
+		switch {
+		case format == formatJSON:
+		case slices.Contains(hadolintFormats, format):
+			f.Warnings = append(f.Warnings, fmt.Sprintf("format %q is not written: godolint writes json", format))
+		default:
+			return fmt.Errorf("%w: format `%s`", ErrInvalidValue, format)
 		}
 	}
 
