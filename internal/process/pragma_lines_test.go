@@ -57,8 +57,13 @@ func TestRunAppliesAPragmaFromItsOwnLine(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			failures, err := process.NewProcessor([]rule.Rule{tc.rule()}).Run(instructions)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			var lines []int
-			for _, failure := range process.NewProcessor([]rule.Rule{tc.rule()}).Run(instructions) {
+			for _, failure := range failures {
 				lines = append(lines, failure.Line)
 			}
 

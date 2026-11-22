@@ -27,6 +27,10 @@ import (
 // failures are already on stdout, and the exit status is 1 without a log line.
 var errViolations = errors.New("violations found")
 
+// noShellcheck is said on stderr by a run that finds no shellcheck.
+const noShellcheck = "warning: no shellcheck in PATH: the RUN instructions are not checked with it " +
+	"(--without-shellcheck to lint without it and without this warning)"
+
 // What the command line may say that a setting does not take.
 var (
 	errLabelType = errors.New("not a label type (text, url, spdx, hash, rfc3339, semver, email)")
@@ -255,11 +259,11 @@ func (c *CLI) buildRules(cfg *config.Config) ([]rule.Rule, error) {
 		return ruleSet, nil
 	}
 
-	// Missing shellcheck degrades gracefully (matching hadolint): warn and
-	// lint without the integration rather than failing the run.
+	// No shellcheck is no error: the run lints without it and says so, at
+	// every log level, since its verdict is then on fewer checks.
 	//nolint:nilerr // intentional, see above.
 	if _, err := exec.LookPath("shellcheck"); err != nil {
-		slog.Warn("shellcheck binary not found in PATH, shellcheck integration disabled")
+		fmt.Fprintln(os.Stderr, noShellcheck)
 
 		return ruleSet, nil
 	}
@@ -305,7 +309,12 @@ func lintFiles(processor *process.Processor, paths []string, settled *settings) 
 
 		slog.Debug("parsed Dockerfile", "file", dockerfilePath, "instructions", len(instructions))
 
-		failures := process.Settle(processor.Run(instructions), settled.overrides)
+		found, err := processor.Run(instructions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lint %s: %w", dockerfilePath, err)
+		}
+
+		failures := process.Settle(found, settled.overrides)
 		for i := range failures {
 			failures[i].File = dockerfilePath
 		}

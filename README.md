@@ -368,9 +368,12 @@ A `RuleInfo` carries the rule's `Code`, the `Severity` every violation of it has
 ### Typed Errors
 
 ```go
-*sdk.ParseError    // Dockerfile parsing failed
-*sdk.ConfigError   // An option was given a value it does not take
+*sdk.ParseError      // Dockerfile parsing failed
+*sdk.ConfigError     // An option was given a value it does not take
+*sdk.ShellcheckError // shellcheck, asked for, did not scan a RUN
 ```
+
+With `WithShellcheck`, a `RUN` shellcheck does not scan is an error and no `Result`, which would say of that `RUN` what was not checked: no shellcheck in `PATH`, an exit status that is no scan's (shellcheck exits 3 for an option it does not take, as one older than 0.10.0 does for the configuration file), no answer in thirty seconds, or no report on its output (a wrapper that fails in its place).
 
 ### Output Format
 
@@ -405,7 +408,9 @@ In the SDK, a `Violation` marshals as `code`, `severity`, `message` and `line`.
 
 Exit codes:
 - `0`: No violation at the failure threshold or graver. The threshold is `info` unless `--failure-threshold` or the configuration file names another, as in hadolint: a run whose violations are all of the `style` severity exits 0, with the violations on stdout. With `--no-fail`, no violation makes the exit status 1.
-- `1`: A violation at the failure threshold or graver — or a usage or runtime error (a file that cannot be read or parsed, a configuration that cannot be obeyed), reported on stderr with nothing on stdout, whatever `--no-fail` says
+- `1`: A violation at the failure threshold or graver — or a usage or runtime error (a file that cannot be read or parsed, a configuration that cannot be obeyed, a `RUN` shellcheck did not scan), reported on stderr with nothing on stdout, whatever `--no-fail` says
+
+The command checks the `RUN` instructions with shellcheck when there is one in `PATH`. With none, it lints without it and says so on stderr, at every log level: the exit status is that of the other rules. `--without-shellcheck` lints without it and without the warning. A shellcheck that is there and does not scan a `RUN` (an exit status other than 0 and 1, no answer in thirty seconds, or no report on its output) is a runtime error.
 
 ## Architecture
 
@@ -436,8 +441,9 @@ godolint includes full shellcheck integration for validating shell commands in R
 
 For external scripts validation, godolint does shell out to shellcheck.
 
-This is an optional feature, that you have to require explicitly (as it does present the same
-challenges as hadolint).
+In the Go package this is an optional feature, that you have to require explicitly (as it does
+present the same challenges as hadolint); the command uses shellcheck when it finds one, see
+[Output Format](#output-format).
 
 We also believe this should stay disabled, and that external shell scripts linting should not
 be done at all by godolint (or hadolint). Similarly, neither hadolint nor godolint do lint external

@@ -306,13 +306,17 @@ func TestContractShellcheckRCFileMustOpen(t *testing.T) {
 	}
 
 	for name, path := range paths {
-		var refused *sdk.ConfigError
+		named := sdk.WithShellcheck(sdk.WithShellcheckRCFile(path))
 
-		result, err := sdk.New(sdk.WithShellcheck(sdk.WithShellcheckRCFile(path))).
-			Lint(t.Context(), []byte("FROM debian:12\nRUN echo $HOME\n"))
-		if result != nil || !errors.As(err, &refused) || refused.Option != "WithShellcheckRCFile" ||
-			refused.Value != path {
-			t.Errorf("%s: %v, %v; want a *ConfigError naming it and no result", name, result, err)
+		// A later WithShellcheck holds, and does not take the refusal back.
+		for order, opts := range map[string][]sdk.Option{"alone": {named}, "then given again": {named, sdk.WithShellcheck()}} {
+			var refused *sdk.ConfigError
+
+			result, err := sdk.New(opts...).Lint(t.Context(), []byte("FROM debian:12\nRUN echo $HOME\n"))
+			if result != nil || !errors.As(err, &refused) || refused.Option != "WithShellcheckRCFile" ||
+				refused.Value != path {
+				t.Errorf("%s, %s: %v, %v; want a *ConfigError naming it and no result", name, order, result, err)
+			}
 		}
 	}
 }
@@ -430,6 +434,13 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 
 	leftOut := sdk.WithShellcheck(sdk.WithShellcheckExclusions("SC2086"))
 
+	rcfile := filepath.Join(t.TempDir(), "shellcheckrc")
+	if err := os.WriteFile(rcfile, []byte("disable=SC2086\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	disabled := sdk.WithShellcheck(sdk.WithShellcheckRCFile(rcfile))
+
 	for name, tc := range map[string]struct {
 		opts []sdk.Option
 		want int
@@ -439,6 +450,8 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 		"given twice":                   {[]sdk.Option{sdk.WithShellcheck(), sdk.WithShellcheck()}, 1},
 		"the last leaves the check out": {[]sdk.Option{sdk.WithShellcheck(), leftOut}, 0},
 		"the last leaves nothing out":   {[]sdk.Option{leftOut, sdk.WithShellcheck()}, 1},
+		"the last names a file":         {[]sdk.Option{sdk.WithShellcheck(), disabled}, 0},
+		"the last names no file":        {[]sdk.Option{disabled, sdk.WithShellcheck()}, 1},
 	} {
 		found := 0
 
@@ -452,4 +465,40 @@ func TestContractShellcheckHoldsWhereverItStands(t *testing.T) {
 			t.Errorf("%s: SC2086 reported %d times, want %d", name, found, tc.want)
 		}
 	}
+}
+
+// TestContractShellcheckThatDidNotScanIsAnError: a RUN shellcheck was to
+// scan and did not is a *ShellcheckError naming its line, and no Result:
+// with an option shellcheck does not take, and with no shellcheck on PATH.
+// A Dockerfile with no RUN for shellcheck to read is linted either way.
+func TestContractShellcheckThatDidNotScanIsAnError(t *testing.T) {
+	const (
+		dockerfile = "FROM debian:12\n\nRUN echo $HOME\n"
+		noShell    = "FROM debian:12\nRUN [\"true\"]\n"
+	)
+
+	notScanned := func(name string, linter *sdk.Linter) {
+		t.Helper()
+
+		var scan *sdk.ShellcheckError
+
+		result, err := linter.Lint(t.Context(), []byte(dockerfile))
+		if result != nil || !errors.As(err, &scan) || scan.Line != 3 || scan.Err == nil {
+			t.Errorf("%s: %v, %v; want a *ShellcheckError at line 3 and no result", name, result, err)
+		}
+
+		if result, err := linter.Lint(t.Context(), []byte(noShell)); err != nil || result == nil {
+			t.Errorf("%s, nothing for shellcheck to read: %v, %v; want a result", name, result, err)
+		}
+	}
+
+	if _, err := exec.LookPath("shellcheck"); err == nil {
+		// An exclusion that is no check: shellcheck exits 3 and scans nothing.
+		notScanned("an option shellcheck does not take",
+			sdk.New(sdk.WithShellcheck(sdk.WithShellcheckExclusions("bogus"))))
+	}
+
+	t.Setenv("PATH", t.TempDir())
+
+	notScanned("no shellcheck on PATH", sdk.New(sdk.WithShellcheck()))
 }

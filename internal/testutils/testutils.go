@@ -20,7 +20,8 @@ const labelPlace = "<label>"
 // It panics on a failure that carries the code of one of the rules without
 // that rule's severity, or without its message (the label standing where the
 // rule's message says `<label>`): what a rule declares is what its failures
-// carry, for every rule a test lints with.
+// carry, for every rule a test lints with. It panics on a rule that could
+// not do its work, too.
 func LintDockerfile(dockerfile string, rules []rule.Rule) []rule.CheckFailure {
 	return lint(dockerfile, rules, false)
 }
@@ -49,7 +50,11 @@ func lint(dockerfile string, rules []rule.Rule, onBuild bool) []rule.CheckFailur
 		}
 	}
 
-	failures := process.NewProcessor(rules).Run(instructions)
+	failures, err := process.NewProcessor(rules).Run(instructions)
+	if err != nil {
+		panic(err)
+	}
+
 	holdToRules(failures, rules)
 
 	return failures
