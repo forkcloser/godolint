@@ -239,7 +239,8 @@ func convertFrom(node *parser.Node) (*syntax.From, error) {
 	for i := 1; i < len(values); i++ {
 		if values[i] == "AS" || values[i] == "as" {
 			if i+1 < len(values) {
-				alias := values[i+1]
+				// A build keeps a stage's name in lower case.
+				alias := strings.ToLower(values[i+1])
 				baseImage.Alias = &alias
 			}
 
