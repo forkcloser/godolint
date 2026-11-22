@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/alecthomas/kong v1.17.0
-	github.com/moby/buildkit v0.35.0
+	github.com/moby/buildkit v0.35.1
 	github.com/mycophonic/primordium v0.15.1
 	go.yaml.in/yaml/v4 v4.0.0
 	mvdan.cc/sh/v3 v3.14.1
