@@ -5,7 +5,7 @@
 //
 // A pragma is a comment of the form
 //
-//	# hadolint ignore=DL3006,DL3008        the next line
+//	# hadolint ignore=DL3006,DL3008        the instruction on the next line
 //	# hadolint stage ignore=DL3006         the stage the FROM below it starts
 //	# hadolint global ignore=DL3006        the whole file
 //
@@ -29,8 +29,8 @@ type codes map[rule.Code]struct{}
 // Directives is the ignore pragmas of one Dockerfile, keyed the way
 // hadolint's three folds key them: by the line a pragma applies to.
 type Directives struct {
-	// line holds a line pragma under the line it applies to (the comment's
-	// line + 1).
+	// line holds a line pragma under each line it applies to: the comment's
+	// line + 1, and the lines after it of the instruction that starts there.
 	line map[int]codes
 	// stage holds a stage pragma under the line it applies to, and an empty
 	// set under every FROM's line that has no pragma already: the boundary
@@ -50,6 +50,14 @@ func Parse(instructions []syntax.InstructionPos) Directives {
 	}
 
 	for _, instr := range instructions {
+		// A line pragma covers the instruction below it, to its last line: a
+		// failure may stand on a line of a heredoc's body.
+		if covered, ok := directives.line[instr.LineNumber]; ok {
+			for line := instr.LineNumber + 1; line <= instr.EndLine; line++ {
+				directives.line[line] = covered
+			}
+		}
+
 		switch node := instr.Instruction.(type) {
 		case *syntax.Comment:
 			directives.readComment(instr.LineNumber, node.Text)
@@ -66,8 +74,9 @@ func Parse(instructions []syntax.InstructionPos) Directives {
 }
 
 // ShouldIgnore reports whether a pragma silences the failure: a global
-// pragma for its code, a line pragma on its line, or the stage pragma in
-// force at its line. Ported from shouldKeep in Hadolint.Process.
+// pragma for its code, a line pragma on the instruction its line is one of,
+// or the stage pragma in force at its line. Ported from shouldKeep in
+// Hadolint.Process.
 func (d *Directives) ShouldIgnore(failure rule.CheckFailure) bool {
 	if _, ok := d.global[failure.Code]; ok {
 		return true

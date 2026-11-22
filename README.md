@@ -132,7 +132,8 @@ FROM alpine
 USER root
 ```
 
-`ignore` covers the next line, `stage ignore`, written above a `FROM`, the
+`ignore` covers the instruction on the next line, down to its last line (the
+body of a heredoc included), `stage ignore`, written above a `FROM`, the
 stage that `FROM` starts, `global ignore` the whole file. Spaces around the `=` and the
 commas, and a `# comment` after the list, are fine. A list with a name that is
 not a rule code (`ignore=crazy,DL3002`) is not a pragma at all, as in hadolint.
@@ -400,7 +401,7 @@ The command writes hadolint's `json` format and no other: one array on stdout, o
 ]
 ```
 
-`file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`. The violations of a file are ordered by line, and by code on one line; several files come one after the other, in the order they were given.
+`file` is the path as it was given, `column` is always 1, and `level` is `error`, `warning`, `info` or `style`. `line` is the first line of the instruction, but for what shellcheck finds in the body of a heredoc, which is on the line it stands on. The violations of a file are ordered by line, and by code on one line; several files come one after the other, in the order they were given.
 
 There is no `--format` and no `--output`: hadolint's other formats (`tty`, its default, `checkstyle`, `codacy`, `codeclimate`, `gitlab_codeclimate`, `gnu`, `junit`, `sarif`, `sonarqube`) and its output file are not offered, and a configuration file that asks for one of them is refused. A caller that wants another shape reads the JSON.
 

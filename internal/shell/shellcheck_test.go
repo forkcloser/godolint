@@ -102,8 +102,8 @@ func TestBinaryShellchecker_LineOffsets(t *testing.T) {
 
 	// A two-line script: SC2164 (cd without || exit) fires on the second
 	// line, so its failure must carry offset 1; SC2086 on the first line
-	// must carry offset 0. The column is exact beyond the first line (the
-	// script lines are verbatim there), pinned to 1 on the first.
+	// must carry offset 0. The column is 1 on either, wherever shellcheck
+	// puts the finding.
 	script := "echo $FOO\n  cd /app"
 
 	failures, err := shell.NewBinaryShellchecker().Check(script, shell.DefaultOpts())
@@ -131,7 +131,7 @@ func TestBinaryShellchecker_LineOffsets(t *testing.T) {
 	}
 
 	checkedLine("SC2086", 0, 1)
-	checkedLine("SC2164", 1, 3)
+	checkedLine("SC2164", 1, 1)
 }
 
 func hasCode(failures []rule.CheckFailure, code string) bool {
@@ -198,16 +198,17 @@ func TestShellcheckRule_MultiLineRunAnchoring(t *testing.T) {
 
 	scRule := shell.NewShellcheckRule(shell.NewBinaryShellchecker())
 
-	// A RUN at line 5 whose command's second line triggers SC2164: the
-	// failure must land on Dockerfile line 6 (instruction line + offset).
+	// A RUN at line 5 whose script starts a line below it, as a heredoc's
+	// body does, and whose second line triggers SC2164: the failure must
+	// land on Dockerfile line 7 (the script's first line + the offset).
 	state := scRule.InitialState()
 	state = scRule.Check(1, state, &syntax.From{Image: syntax.BaseImage{Image: "debian"}})
-	state = scRule.Check(5, state, &syntax.Run{Command: "true\ncd /app"})
+	state = scRule.Check(5, state, &syntax.Run{Command: "true\ncd /app", ScriptOffset: 1})
 
 	for _, f := range state.Failures {
 		if string(f.Code) == "SC2164" {
-			if f.Line != 6 {
-				t.Errorf("SC2164 anchored to line %d, want 6", f.Line)
+			if f.Line != 7 {
+				t.Errorf("SC2164 anchored to line %d, want 7", f.Line)
 			}
 
 			return

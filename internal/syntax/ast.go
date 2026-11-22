@@ -14,6 +14,9 @@ type Instruction interface {
 type InstructionPos struct {
 	Instruction Instruction
 	LineNumber  int
+	// EndLine is the instruction's last line: its continued lines and the
+	// bodies of its heredocs, down to the last delimiter.
+	EndLine int
 }
 
 // BaseImage field names match Haskell: image, tag, digest, alias, platform (all lowercase).
@@ -40,6 +43,10 @@ type Run struct {
 	Command string   // The shell command to execute
 	Flags   []string // RUN instruction flags (e.g., --mount)
 	IsJSON  bool     // true if using JSON/exec form, false if shell form
+	// ScriptOffset is how many lines below the instruction's line the first
+	// line of Command stands: 0, but for a heredoc's body, the one Command
+	// with lines of its own in the Dockerfile.
+	ScriptOffset int
 }
 
 // Name returns the instruction name.

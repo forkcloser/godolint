@@ -421,3 +421,49 @@ func TestParseCommentsStandOnTheirLines(t *testing.T) {
 		t.Errorf("the instructions are\n%q\nwant\n%q", got, want)
 	}
 }
+
+// TestParseRunScriptStartsBelowItsLine: a RUN whose script is a heredoc's
+// body says how many lines below its own the script starts, and every
+// instruction its last line; any other RUN's script is on its line.
+func TestParseRunScriptStartsBelowItsLine(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		dockerfile string
+		line       int
+		end        int
+		offset     int
+	}{
+		"a body":                         {"FROM a\nRUN <<EOF\necho a\necho b\nEOF\n", 2, 5, 1},
+		"a body with its tabs stripped":  {"FROM a\nRUN <<-EOF\n\techo a\n\tEOF\n", 2, 4, 1},
+		"a body opening with two blanks": {"FROM a\nRUN <<EOF\n\n  \necho a\nEOF\n", 2, 6, 3},
+		"the marker on a continued line": {"FROM a\nRUN \\\n  <<EOF\necho a\nEOF\n", 2, 5, 2},
+		"an empty body":                  {"FROM a\nRUN <<EOF\nEOF\n", 2, 3, 1},
+		"a body ONBUILD wraps":           {"FROM a\nONBUILD RUN <<EOF\n\necho a\nEOF\n", 2, 5, 2},
+		"a command before the heredoc":   {"FROM a\nRUN cat <<EOF > /motd\nhello\nEOF\n", 2, 4, 0},
+		"two heredocs":                   {"FROM a\nRUN <<ONE <<TWO\necho a\nONE\necho b\nTWO\n", 2, 6, 0},
+		"a body for another interpreter": {"FROM a\nRUN <<EOF\n#!/usr/bin/env python3\nprint(1)\nEOF\n", 2, 5, 0},
+		"a continued line":               {"FROM a\nRUN echo a && \\\n    echo b\n", 2, 3, 0},
+		"one line":                       {"FROM a\nRUN echo a\n", 2, 2, 0},
+	} {
+		instructions, err := parser.NewBuildkitParser().Parse([]byte(tc.dockerfile))
+		if err != nil || len(instructions) != 2 {
+			t.Errorf("%s: Parse() = %v, %v; want two instructions", name, instructions, err)
+
+			continue
+		}
+
+		last := instructions[1]
+
+		inner := last.Instruction
+		if onBuild, wraps := inner.(*syntax.OnBuild); wraps {
+			inner = onBuild.Inner
+		}
+
+		run, isRun := inner.(*syntax.Run)
+		if !isRun || last.LineNumber != tc.line || last.EndLine != tc.end || run.ScriptOffset != tc.offset {
+			t.Errorf("%s: %+v on lines %d to %d; want a RUN on lines %d to %d whose script starts %d below",
+				name, inner, last.LineNumber, last.EndLine, tc.line, tc.end, tc.offset)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 
@@ -82,6 +83,7 @@ func (*BuildkitParser) Parse(dockerfile []byte) ([]syntax.InstructionPos, error)
 			instructions = append(instructions, syntax.InstructionPos{
 				Instruction: instr,
 				LineNumber:  child.StartLine,
+				EndLine:     child.EndLine,
 			})
 		}
 	}
@@ -118,6 +120,7 @@ func commentLines(dockerfile []byte, nodes []*parser.Node) []syntax.InstructionP
 			comments = append(comments, syntax.InstructionPos{
 				Instruction: &syntax.Comment{Text: strings.TrimSpace(text)},
 				LineNumber:  number,
+				EndLine:     number,
 			})
 		}
 	}
@@ -318,14 +321,25 @@ func convertRun(node *parser.Node) (*syntax.Run, error) {
 		command += n.Value
 	}
 
+	offset := 0
+
 	if len(node.Heredocs) > 0 {
-		command = heredocScript(command, node.Heredocs[0])
+		var below int
+
+		command, below = heredocScript(command, node.Heredocs[0])
+
+		// A body that is the script is the only heredoc of its instruction,
+		// so it ends on the line above the instruction's last, the delimiter.
+		if below >= 0 {
+			offset = node.EndLine - strings.Count(node.Heredocs[0].Content, "\n") - node.StartLine + below
+		}
 	}
 
 	return &syntax.Run{
-		Command: command,
-		Flags:   node.Flags,
-		IsJSON:  node.Attributes != nil && node.Attributes["json"],
+		Command:      command,
+		Flags:        node.Flags,
+		IsJSON:       node.Attributes != nil && node.Attributes["json"],
+		ScriptOffset: offset,
 	}, nil
 }
 
@@ -341,16 +355,19 @@ var shells = map[string]bool{"sh": true, "bash": true, "ash": true, "dash": true
 // the script is what stands before the heredoc, as hadolint's parser has it.
 // A body that names an interpreter of its own that is no shell (#!/usr/bin/env
 // python3) is run by it, and is no shell script.
-func heredocScript(command string, heredoc parser.Heredoc) string {
+//
+// With a script that is the body comes the number of blank lines the body
+// opens with, which the script does not keep; with any other, -1.
+func heredocScript(command string, heredoc parser.Heredoc) (script string, blank int) {
 	operator := regexp.MustCompile(`\d*<<-?\s*["']?` + regexp.QuoteMeta(heredoc.Name) + `["']?`)
 
 	span := operator.FindStringIndex(command)
 	if span == nil {
-		return command
+		return command, -1
 	}
 
 	if strings.TrimSpace(command[:span[0]]+command[span[1]:]) != "" {
-		return strings.TrimSpace(command[:span[0]])
+		return strings.TrimSpace(command[:span[0]]), -1
 	}
 
 	body := heredoc.Content
@@ -359,10 +376,12 @@ func heredocScript(command string, heredoc parser.Heredoc) string {
 	}
 
 	if interpreter, named := shebang(body); named && !shells[interpreter] {
-		return ""
+		return "", -1
 	}
 
-	return strings.TrimSpace(body)
+	opening := body[:len(body)-len(strings.TrimLeftFunc(body, unicode.IsSpace))]
+
+	return strings.TrimSpace(body), strings.Count(opening, "\n")
 }
 
 // shebang is the interpreter a script names on its first line, by its base
