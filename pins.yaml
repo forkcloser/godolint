@@ -1,7 +1,7 @@
 # The hadolint source godolint is generated from, pinned on a commit of its
 # master and by digest (book/tooling.md, "Pinned artifacts beyond aqua"): the
 # rules follow hadolint's master, which runs ahead of its tags. `just
-# generate` reads the entry back with `limen pins get hadolint
+# converge` reads the entry back with `limen pins get hadolint
 # commit|url|sha256`, fetches the tarball into .build/ and regenerates
 # internal/rules from it; `just lint` regenerates and fails on a diff, so the
 # committed rules and tests always match the pin. Renovate proposes master's
