@@ -277,6 +277,18 @@ RUN [[ -f /x ]] && echo ok`,
 			fails: false,
 		},
 		{
+			name: "A shell run through env, after options in one word, the last with its value next",
+			dockerfile: `SHELL ["env", "-iu", "BASH_ENV", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
+			name: "A shell run through env, after options in one word, the last with its value in it",
+			dockerfile: `SHELL ["env", "-iuBASH_ENV", "bash", "-c"]
+RUN [[ -f /x ]] && echo ok`,
+			fails: false,
+		},
+		{
 			name: "A shell run through env from a split string",
 			dockerfile: `SHELL ["env", "-S", "bash -e", "-c"]
 RUN [[ -f /x ]] && echo ok`,

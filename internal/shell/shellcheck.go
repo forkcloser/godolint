@@ -293,16 +293,38 @@ const (
 	busyboxShell   = "/bin/busybox sh"
 )
 
+// envValueOptions are env's short options that take a value: -u, -C, -P
+// and -a.
+const envValueOptions = "uCPa"
+
+// envTakesNext says whether word is an option of env whose value is the
+// next word: one of GNU's long forms, or short options in one word of which
+// the last takes a value (-u, and -iu). One that is not the last has its
+// value in what is left of the word (-uNAME).
+func envTakesNext(word string) bool {
+	switch word {
+	case "--unset", "--chdir", "--argv0":
+		return true
+	}
+
+	if !strings.HasPrefix(word, "-") || strings.HasPrefix(word, "--") {
+		return false
+	}
+
+	letters := word[1:]
+	first := strings.IndexAny(letters, envValueOptions)
+
+	return first >= 0 && first == len(letters)-1
+}
+
 // envRuns is the program env runs with args: the first word that is
-// neither an option, the value of one, nor a variable, or "". The options
-// read here as taking their value in the next word are -u, -C, -P and -a,
-// with GNU's long forms. -S needs nothing: its value is the command, and
-// the words come here already split.
+// neither an option, the value of one, nor a variable, or "". -S needs
+// nothing: its value is the command, and the words come here already
+// split.
 func envRuns(args []string) string {
 	for at := 0; at < len(args); at++ {
 		switch word := args[at]; {
-		case word == "-u", word == "--unset", word == "-C", word == "--chdir", word == "-P",
-			word == "-a", word == "--argv0":
+		case envTakesNext(word):
 			at++
 		case strings.HasPrefix(word, "-"), strings.Contains(word, "="):
 		default:
