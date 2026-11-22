@@ -269,9 +269,17 @@ func convertFindings(scResults []shellcheckOutput, opts Opts) []rule.CheckFailur
 func buildScript(runCommand string, opts Opts) string {
 	var build strings.Builder
 
+	// The first line is this function's, not the Dockerfile's: shellcheck
+	// reports one that is no absolute path (SC2239), so a shell named
+	// without its path (SHELL ["bash", "-c"]) is found through env, which
+	// tells shellcheck the same shell.
 	shebang := extractShell(opts.ShellName)
-	if shebang == "" {
+
+	switch {
+	case shebang == "":
 		shebang = "/bin/sh"
+	case !strings.HasPrefix(shebang, "/"):
+		shebang = "/usr/bin/env " + Basename(shebang)
 	}
 
 	_, _ = build.WriteString("#!")
