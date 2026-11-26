@@ -12,6 +12,8 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/forkcloser/go-xos"
+
 	"github.com/forkcloser/godolint/internal/rule"
 )
 
@@ -63,7 +65,7 @@ type Override struct {
 // Warnings: a key hadolint does not have, and a format it has that is not
 // json.
 func Read(path string) (*File, error) {
-	content, err := os.ReadFile(path) // #nosec G304 -- the configuration file is the caller's to name
+	content, err := xos.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading the configuration file: %w", err)
 	}
@@ -345,7 +347,7 @@ func Find() (string, bool) {
 	candidates = append(candidates, under(home, hidden)...)
 
 	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
+		if info, err := xos.Stat(candidate); err == nil && info.Mode().IsRegular() {
 			return candidate, true
 		}
 	}

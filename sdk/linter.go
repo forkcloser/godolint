@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
+
+	"github.com/forkcloser/go-xos"
 
 	"github.com/forkcloser/godolint/internal/config"
 	"github.com/forkcloser/godolint/internal/parser"
@@ -213,7 +214,7 @@ func WithShellcheck(scOpts ...ShellcheckOption) Option {
 
 // opens reports whether the file at path can be opened for reading.
 func opens(path string) bool {
-	file, err := os.Open(
+	file, err := xos.Open(
 		path,
 	) // #nosec G304 G703 -- the configuration file the caller names, as shellcheck would open it
 	if err != nil {
@@ -328,7 +329,7 @@ func (l *Linter) Lint(ctx context.Context, dockerfile []byte) (*Result, error) {
 // LintFile reads the Dockerfile at path and lints it as Lint does; a path
 // that cannot be read is an error wrapping the file system's.
 func (l *Linter) LintFile(ctx context.Context, path string) (*Result, error) {
-	dockerfile, err := os.ReadFile(path) // #nosec G304 -- the path is the caller's, this method's one argument
+	dockerfile, err := xos.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}

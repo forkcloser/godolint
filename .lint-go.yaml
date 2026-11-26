@@ -47,6 +47,10 @@ golangci:
               - github.com/alecthomas/kong
               - github.com/mycophonic/primordium
               - go.yaml.in/yaml/v4
+              # The files the linter, the command and the generators open go
+              # through xos: os, call for call, and on Windows a file that
+              # can be renamed or removed while it is open.
+              - github.com/forkcloser/go-xos
               # Not a dependency. depguard checks one entry per import, the last
               # that sorts at or before it: with go.yaml.in/… allowed, that
               # entry is the one it finds for the standard library's go/…

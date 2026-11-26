@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/forkcloser/go-xos"
+
 	"github.com/forkcloser/godolint/internal/pragma"
 	"github.com/forkcloser/godolint/internal/rule"
 	"github.com/forkcloser/godolint/internal/syntax"
@@ -149,7 +151,7 @@ func (c *BinaryShellchecker) Check(script string, opts Opts) ([]rule.CheckFailur
 // that does not read, which is what a wrapper that fails in shellcheck's
 // place leaves, often with status 1.
 func (c *BinaryShellchecker) run(fullScript string) ([]shellcheckOutput, error) {
-	tmpFile, err := os.CreateTemp("", "shellcheck-*.sh")
+	tmpFile, err := xos.CreateTemp("", "shellcheck-*.sh")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}

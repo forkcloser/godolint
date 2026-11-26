@@ -10,6 +10,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/forkcloser/go-xos"
 )
 
 // ErrGeneration is the base error of a failed generation.
@@ -45,7 +47,7 @@ func main() {
 
 func generate(path string) error {
 	// #nosec G304 G703 -- the licenses.json of the pinned list, named by the caller
-	data, err := os.ReadFile(path)
+	data, err := xos.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrGeneration, err)
 	}
@@ -55,7 +57,7 @@ func generate(path string) error {
 		return err
 	}
 
-	file, err := os.Create(output)
+	file, err := xos.Create(output)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrGeneration, err)
 	}
