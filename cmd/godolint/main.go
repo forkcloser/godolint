@@ -15,6 +15,8 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/mycophonic/primordium/app/logger"
 
+	"github.com/forkcloser/go-xos"
+
 	"github.com/forkcloser/godolint/internal/config"
 	"github.com/forkcloser/godolint/internal/parser"
 	"github.com/forkcloser/godolint/internal/process"
@@ -279,7 +281,7 @@ func (c *CLI) buildRules(cfg *config.Config) ([]rule.Rule, error) {
 	// wrong path would lint without the configuration and say nothing.
 	if c.ShellcheckRcfile != "" {
 		// #nosec G304 G703 -- the configuration file the operator names, as shellcheck would open it
-		file, err := os.Open(c.ShellcheckRcfile)
+		file, err := xos.Open(c.ShellcheckRcfile)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read shellcheck rcfile: %w", err)
 		}
@@ -302,7 +304,7 @@ func lintFiles(processor *process.Processor, paths []string, settled *settings) 
 
 	for _, dockerfilePath := range paths {
 		// #nosec G304 -- reading user-supplied Dockerfile paths is this tool's purpose.
-		dockerfileContent, err := os.ReadFile(dockerfilePath)
+		dockerfileContent, err := xos.ReadFile(dockerfilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: %w", dockerfilePath, err)
 		}

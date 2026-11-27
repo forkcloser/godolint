@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"text/template"
+
+	"github.com/forkcloser/go-xos"
 )
 
 // ErrRuleGeneration is the base error for rule generation failures.
@@ -95,7 +97,7 @@ func main() {
 		// The "taint" is the maintainer's own hadolint checkout, and the code
 		// is regex-constrained to DL\d+ — no traversal is possible.
 		// #nosec G703 -- dev-only codegen; path derives from a regex-matched rule code.
-		if _, err := os.Stat(implFile); err == nil {
+		if _, err := xos.Stat(implFile); err == nil {
 			rules[idx].Implemented = true
 		}
 	}
@@ -170,7 +172,7 @@ func main() {
 
 func parseRuleFile(path string) (RuleMetadata, error) {
 	// #nosec G304 G703
-	content, err := os.ReadFile(path)
+	content, err := xos.ReadFile(path)
 	if err != nil {
 		return RuleMetadata{}, fmt.Errorf("%w: %w", ErrRuleGeneration, err)
 	}
@@ -375,7 +377,7 @@ var onBuild = map[rule.Code]bool{
 
 	out.WriteString("}\n")
 
-	outputFile, err := os.Create("onbuild.go")
+	outputFile, err := xos.Create("onbuild.go")
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRuleGeneration, err)
 	}
@@ -417,7 +419,7 @@ var {{.Code}}Meta = rule.Meta{
 	filename := strings.ToLower(rule.Code) + ".go"
 
 	// #nosec G304
-	outputFile, err := os.Create(filename)
+	outputFile, err := xos.Create(filename)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRuleGeneration, err)
 	}
@@ -439,7 +441,7 @@ func generateImplementation(rule RuleMetadata) error {
 	filename := strings.ToLower(rule.Code) + "_impl.go"
 
 	// Check if implementation already exists
-	if _, err := os.Stat(filename); err == nil {
+	if _, err := xos.Stat(filename); err == nil {
 		return nil // File exists, don't overwrite
 	}
 
@@ -473,7 +475,7 @@ func {{.Code}}() rule.Rule {
 	}
 
 	// #nosec G304
-	outputFile, err := os.Create(filename)
+	outputFile, err := xos.Create(filename)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRuleGeneration, err)
 	}

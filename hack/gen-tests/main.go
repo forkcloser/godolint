@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/forkcloser/go-xos"
 )
 
 // ErrTestGeneration is the base error for test generation failures.
@@ -125,7 +127,7 @@ func generate(dir string, report io.Writer) error {
 
 	for _, file := range files {
 		// #nosec G304 G703 -- the specs of the pinned hadolint, named by the caller
-		content, err := os.ReadFile(file)
+		content, err := xos.ReadFile(file)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 		}
@@ -158,7 +160,7 @@ func generate(dir string, report io.Writer) error {
 			return fmt.Errorf("%w: a case asserts the code %q, which is no rule's", ErrTestGeneration, ruleCode)
 		}
 
-		if _, err := os.Stat(strings.ToLower(ruleCode) + "_impl.go"); err != nil {
+		if _, err := xos.Stat(strings.ToLower(ruleCode) + "_impl.go"); err != nil {
 			left[ruleCode+": the rule has no implementation"] += len(read[ruleCode])
 
 			continue
@@ -426,7 +428,7 @@ func Test{{.RuleCode}}(t *testing.T) {
 	}
 
 	// #nosec G304
-	outputFile, err := os.Create(strings.ToLower(ruleCode) + "_test.go")
+	outputFile, err := xos.Create(strings.ToLower(ruleCode) + "_test.go")
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrTestGeneration, err)
 	}
